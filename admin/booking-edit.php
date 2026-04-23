@@ -114,6 +114,20 @@ $staff = is_admin()
     ? db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name")
     : [['id' => current_user()['id'], 'name' => current_user()['name']]];
 
+// Build working-hours map: { staff_id: { dow: {start, end, is_off} } }
+$wh_rows = db_all("SELECT staff_id, day_of_week, start_time, end_time, is_off FROM working_hours");
+$working_hours_map = [];
+foreach ($wh_rows as $r) {
+    $working_hours_map[(int)$r['staff_id']][(int)$r['day_of_week']] = [
+        'start' => $r['start_time'],
+        'end'   => $r['end_time'],
+        'is_off'=> (int)$r['is_off'] === 1,
+    ];
+}
+// Map service_id -> duration_minutes for the client.
+$service_duration_map = [];
+foreach ($services as $s) $service_duration_map[(int)$s['id']] = (int)$s['duration_minutes'];
+
 admin_header();
 ?>
 <h1 class="text-2xl font-semibold mb-4"><?= $booking && !empty($booking['id']) ? 'Edit booking' : 'New booking' ?></h1>
@@ -124,7 +138,7 @@ admin_header();
   </div>
 <?php endif; ?>
 
-<form method="post" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-4 max-w-2xl">
+<form id="bookingEditForm" method="post" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-4 max-w-2xl">
   <?= csrf_field() ?>
   <div class="grid md:grid-cols-2 gap-3">
     <label class="block text-sm">Customer name
@@ -176,4 +190,50 @@ admin_header();
     <?php endif; ?>
   </div>
 </form>
+
+<script>
+(function(){
+  const workingHours = <?= json_encode($working_hours_map) ?>;
+  const serviceDurations = <?= json_encode($service_duration_map) ?>;
+  const form = document.getElementById('bookingEditForm');
+  if (!form) return;
+
+  function toMinutes(t) { const [h,m] = t.split(':'); return (+h)*60 + (+m); }
+
+  form.addEventListener('submit', function(e){
+    // Skip the working-hours check if the user clicked the Delete button.
+    if (e.submitter && e.submitter.name === 'action' && e.submitter.value === 'delete') return;
+
+    const staffId = +form.staff_id.value;
+    const serviceId = +form.service_id.value;
+    const date = form.booking_date.value;
+    const start = form.start_time.value;
+    if (!staffId || !serviceId || !date || !start) return;
+
+    const dow = new Date(date + 'T00:00:00').getDay(); // 0=Sun..6=Sat
+    const wh = (workingHours[staffId] || {})[dow];
+    const duration = serviceDurations[serviceId] || 0;
+    const startMin = toMinutes(start);
+    const endMin = startMin + duration;
+
+    let reason = null;
+    if (!wh || wh.is_off) {
+      reason = 'This staff member is marked OFF on ' + ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow] + '.';
+    } else {
+      const whStart = toMinutes(wh.start);
+      const whEnd = toMinutes(wh.end);
+      if (startMin < whStart || endMin > whEnd) {
+        reason = 'This booking (' + start + ' – ' + String(Math.floor(endMin/60)).padStart(2,'0') + ':' + String(endMin%60).padStart(2,'0') +
+          ') is outside the staff member\'s working hours (' + wh.start + ' – ' + wh.end + ').';
+      }
+    }
+
+    if (reason) {
+      if (!confirm(reason + '\n\nBook anyway?')) {
+        e.preventDefault();
+      }
+    }
+  });
+})();
+</script>
 <?php admin_footer(); ?>

@@ -132,32 +132,33 @@ admin_header();
         <!-- Time grid -->
         <div class="relative">
             <?php for ($h = $hour_start; $h < $hour_end; $h++): ?>
-                <div class="h-16 text-right pr-2 text-[11px] text-neutral-400 border-t border-neutral-100"><?= sprintf('%02d:00', $h) ?></div>
+                <div class="h-20 text-right pr-2 text-[11px] text-neutral-400 border-t border-neutral-100"><?= sprintf('%02d:00', $h) ?></div>
             <?php endfor; ?>
         </div>
         <?php foreach ($days as $d): ?>
-            <div class="relative border-l border-neutral-100" style="min-height: <?= ($hour_end - $hour_start) * 64 ?>px;">
+            <div class="relative border-l border-neutral-100" style="min-height: <?= ($hour_end - $hour_start) * 80 ?>px;">
                 <?php for ($h = $hour_start; $h < $hour_end; $h++): ?>
-                    <div class="h-16 border-t border-neutral-100"></div>
+                    <div class="h-20 border-t border-neutral-100"></div>
                 <?php endfor; ?>
                 <?php foreach (($by_day[$d] ?? []) as $item):
                     $is_b = ($item['__type'] ?? '') === 'blocked';
                     $sm = time_to_minutes($item['start_time']) - $hour_start * 60;
                     $em = time_to_minutes($item['end_time']) - $hour_start * 60;
-                    $top = max(0, ($sm / $total_mins) * 100);
-                    $height = max(1.5, (($em - $sm) / $total_mins) * 100);
+                    $pxPerMin = 80 / 60; // h-20 = 80px per hour
+                    $top_px = max(0, $sm * $pxPerMin);
+                    $height_px = max(44, ($em - $sm) * $pxPerMin); // min-height 44px so short slots stay readable
                     $bg = $is_b ? '#f3f4f6' : ($status_bg[$item['status']] ?? '#6b7280') . '22';
                     $border = $is_b ? '#9ca3af' : ($status_bg[$item['status']] ?? '#6b7280');
                     $href = $is_b ? '/admin/blocked-slots.php' : '/admin/booking-edit.php?id=' . (int)$item['id'];
                 ?>
-                <a href="<?= e($href) ?>" class="absolute left-1 right-1 rounded-md px-2 py-1 text-[11px] overflow-hidden"
-                   style="top: <?= $top ?>%; height: <?= $height ?>%; background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
+                <a href="<?= e($href) ?>" class="absolute left-1 right-1 rounded-md px-2 py-1 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto"
+                   style="top: <?= $top_px ?>px; height: <?= $height_px ?>px; min-height: 44px; background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
                    <?php if ($is_b): ?>
-                       <div class="font-medium">Blocked · <?= e($item['staff_name']) ?></div>
-                       <div class="text-neutral-500"><?= e($item['reason']) ?></div>
+                       <div class="font-medium truncate">Blocked · <?= e($item['staff_name']) ?></div>
+                       <div class="text-neutral-500 truncate"><?= e($item['reason']) ?></div>
                    <?php else: ?>
-                       <div class="font-medium"><?= e($item['start_time']) ?> <?= e($item['customer_name']) ?></div>
-                       <div class="text-neutral-600"><?= e($item['service_name']) ?> · <?= e($item['staff_name']) ?></div>
+                       <div class="font-medium truncate"><?= e($item['start_time']) ?> <?= e($item['customer_name']) ?></div>
+                       <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> · <?= e($item['staff_name']) ?></div>
                    <?php endif; ?>
                 </a>
                 <?php endforeach; ?>
