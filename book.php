@@ -18,7 +18,7 @@ $logo    = logo_url();
     <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
     <style>:root{--primary-color: <?= e($primary) ?>;}</style>
 </head>
-<body class="min-h-screen bg-neutral-50 text-neutral-900">
+<body class="min-h-screen bg-neutral-50 text-neutral-900" data-time-format="<?= e(time_format()) ?>">
 <div id="toastRoot"></div>
 
 <header class="bg-white border-b border-neutral-200 sticky top-0 z-30">

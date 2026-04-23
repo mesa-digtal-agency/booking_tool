@@ -93,7 +93,7 @@ admin_header();
     <?php foreach ($rows as $r): ?>
       <tr class="border-t border-neutral-100">
         <td class="px-3 py-2"><?= e($r['date']) ?></td>
-        <td class="px-3 py-2"><?= e($r['start_time']) ?> – <?= e($r['end_time']) ?></td>
+        <td class="px-3 py-2"><?= e(format_time_display($r['start_time'])) ?> – <?= e(format_time_display($r['end_time'])) ?></td>
         <td class="px-3 py-2"><?= e($r['staff_name']) ?></td>
         <td class="px-3 py-2"><?= e($r['reason']) ?></td>
         <td class="px-3 py-2 text-right">

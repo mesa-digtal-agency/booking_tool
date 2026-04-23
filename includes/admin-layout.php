@@ -94,7 +94,7 @@ function admin_header(): void {
       </nav>
       <div class="flex-shrink-0 pt-3 mt-3 border-t border-neutral-100 text-xs text-neutral-500">
         <div id="liveClock" class="mb-2 text-center bg-neutral-50 border border-neutral-100 rounded-lg px-2.5 py-2 text-neutral-900"
-             data-tz="<?= e($tz) ?>" style="font-variant-numeric: tabular-nums;">
+             data-tz="<?= e($tz) ?>" data-format="<?= e(time_format()) ?>" style="font-variant-numeric: tabular-nums;">
           <div class="time font-semibold text-[15px]">—</div>
           <div class="date text-[11px] text-neutral-500"><?= e($tz) ?></div>
         </div>

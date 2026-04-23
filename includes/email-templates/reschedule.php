@@ -20,7 +20,7 @@ $management_url = app_url('/manage-booking.php?token=' . $booking['management_to
         <tr><td style="color:#6b7280;">Service</td><td><strong><?= e($booking['service_name']) ?></strong></td></tr>
         <tr><td style="color:#6b7280;">With</td><td><?= e($booking['staff_name']) ?></td></tr>
         <tr><td style="color:#6b7280;">New date</td><td><?= e($date_h) ?></td></tr>
-        <tr><td style="color:#6b7280;">New time</td><td><?= e($booking['start_time']) ?> – <?= e($booking['end_time']) ?></td></tr>
+        <tr><td style="color:#6b7280;">New time</td><td><?= e(format_time_display($booking['start_time'])) ?> – <?= e(format_time_display($booking['end_time'])) ?></td></tr>
       </table>
       <p><a href="<?= e($management_url) ?>" style="display:inline-block;padding:10px 18px;border-radius:8px;background:<?= e($primary) ?>;color:#fff;text-decoration:none;font-weight:600;">Manage booking</a></p>
     </td></tr>

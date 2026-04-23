@@ -62,6 +62,7 @@ function load_config(): array {
         'from_email' => 'no-reply@example.com',
         'from_name' => 'My Salon',
         'slot_interval_minutes' => 30,
+        'time_format' => '24h',
     ];
     return $cfg;
 }

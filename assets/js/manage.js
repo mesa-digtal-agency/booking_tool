@@ -32,6 +32,19 @@
   function escapeHtml(s) {
     return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   }
+  const TIME_FORMAT = document.body.dataset.timeFormat || '24h';
+  function fmtTime(hhmm) {
+    if (!hhmm) return '';
+    const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
+    if (!m) return hhmm;
+    let h = +m[1], i = m[2];
+    if (TIME_FORMAT === '12h') {
+      const suf = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      return h + ':' + i + ' ' + suf;
+    }
+    return String(m[1]).padStart(2, '0') + ':' + i;
+  }
   function fmtDateHuman(d) {
     return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric', year:'numeric' });
   }
@@ -51,7 +64,7 @@
           <div class="font-semibold text-lg mt-1">${escapeHtml(b.service_name)}</div>
           <div class="text-sm text-neutral-600 mt-1">with ${escapeHtml(b.staff_name)}</div>
           <div class="text-sm mt-3">${fmtDateHuman(b.booking_date)}</div>
-          <div class="text-sm">${b.start_time} – ${b.end_time}</div>
+          <div class="text-sm">${fmtTime(b.start_time)} – ${fmtTime(b.end_time)}</div>
           <div class="text-sm mt-3">Total: <strong>${fmtMoney(b.price)}</strong></div>
           <div class="text-xs text-neutral-500 mt-4">${escapeHtml(b.customer_name)} · ${escapeHtml(b.customer_email)} · ${escapeHtml(b.customer_phone)}</div>
           ${b.notes ? `<div class="text-xs text-neutral-500 mt-2">Note: ${escapeHtml(b.notes)}</div>` : ''}
@@ -117,7 +130,7 @@
       slots.forEach(t => {
         const b = document.createElement('button');
         b.className = 'py-2 rounded-lg border border-neutral-200 text-sm hover:border-primary hover:text-primary transition';
-        b.textContent = t;
+        b.textContent = fmtTime(t);
         b.addEventListener('click', () => confirmReschedule(t));
         newSlots.appendChild(b);
       });
@@ -128,7 +141,7 @@
 
   async function confirmReschedule(time) {
     feedback.innerHTML = '';
-    if (!confirm(`Confirm new time: ${newDate.value} at ${time}?`)) return;
+    if (!confirm(`Confirm new time: ${newDate.value} at ${fmtTime(time)}?`)) return;
     try {
       await api('/api/booking-action.php', { method: 'POST', body: { token, action: 'reschedule', new_date: newDate.value, new_time: time } });
       feedback.innerHTML = '<div class="text-emerald-700">Your booking has been rescheduled. A confirmation email has been sent.</div>';

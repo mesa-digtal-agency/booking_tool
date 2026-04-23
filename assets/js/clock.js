@@ -5,12 +5,19 @@
   const el = document.getElementById('liveClock');
   if (!el) return;
   const tz = el.dataset.tz || 'UTC';
+  const use12 = (el.dataset.format || '24h') === '12h';
 
   function render() {
     const now = new Date();
     let timeStr, dateStr;
     try {
-      timeStr = new Intl.DateTimeFormat([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: tz, hour12: false }).format(now);
+      timeStr = new Intl.DateTimeFormat([], {
+        hour: use12 ? 'numeric' : '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: tz,
+        hour12: use12
+      }).format(now);
       dateStr = new Intl.DateTimeFormat([], { weekday: 'short', month: 'short', day: 'numeric', timeZone: tz }).format(now);
     } catch (e) {
       timeStr = now.toLocaleTimeString();

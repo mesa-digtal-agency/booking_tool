@@ -19,7 +19,7 @@ $date_h = (new DateTime($booking['booking_date']))->format('l, F j, Y');
         <tr><td style="color:#6b7280;">Service</td><td><?= e($booking['service_name']) ?></td></tr>
         <tr><td style="color:#6b7280;">With</td><td><?= e($booking['staff_name']) ?></td></tr>
         <tr><td style="color:#6b7280;">Date</td><td><?= e($date_h) ?></td></tr>
-        <tr><td style="color:#6b7280;">Time</td><td><?= e($booking['start_time']) ?></td></tr>
+        <tr><td style="color:#6b7280;">Time</td><td><?= e(format_time_display($booking['start_time'])) ?></td></tr>
       </table>
       <p>We'd love to see you again soon. <a href="<?= e(app_url('/')) ?>" style="color:<?= e($primary) ?>;">Book another appointment</a>.</p>
     </td></tr>

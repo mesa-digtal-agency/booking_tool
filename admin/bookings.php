@@ -135,7 +135,7 @@ admin_header();
       ?>
         <tr class="border-t border-neutral-100">
           <td class="px-3 py-2 whitespace-nowrap"><?= e($r['booking_date']) ?></td>
-          <td class="px-3 py-2 whitespace-nowrap"><?= e($r['start_time']) ?> – <?= e($r['end_time']) ?></td>
+          <td class="px-3 py-2 whitespace-nowrap"><?= e(format_time_display($r['start_time'])) ?> – <?= e(format_time_display($r['end_time'])) ?></td>
           <td class="px-3 py-2">
             <div class="font-medium"><?= e($r['customer_name']) ?></div>
             <div class="text-xs text-neutral-500"><?= e($r['customer_email']) ?> · <?= e($r['customer_phone']) ?></div>

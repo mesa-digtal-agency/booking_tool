@@ -133,6 +133,30 @@ function primary_color(): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : '#7c3aed';
 }
 
+/** '24h' or '12h'. */
+function time_format(): string {
+    return (string)($GLOBALS['CONFIG']['time_format'] ?? '24h') === '12h' ? '12h' : '24h';
+}
+
+/**
+ * Format an HH:MM (or HH:MM:SS) time string for display according to the
+ * configured time_format. Returns the input unchanged if it can't be parsed.
+ */
+function format_time_display(?string $time): string {
+    if (!$time) return '';
+    $t = trim($time);
+    if (!preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $t, $m)) return $t;
+    $h = (int)$m[1];
+    $i = (int)$m[2];
+    if (time_format() === '12h') {
+        $suffix = $h >= 12 ? 'PM' : 'AM';
+        $h12 = $h % 12;
+        if ($h12 === 0) $h12 = 12;
+        return sprintf('%d:%02d %s', $h12, $i, $suffix);
+    }
+    return sprintf('%02d:%02d', $h, $i);
+}
+
 /**
  * Resolve the logo URL. Returns '' if no logo is configured.
  * Prefers `logo_path` (local), falls back to `business_logo_url` (absolute).

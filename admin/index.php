@@ -136,7 +136,7 @@ admin_header();
           <li class="py-2 flex items-center justify-between gap-2">
             <div>
               <div class="font-medium text-sm"><?= e($u['service_name']) ?> <span class="text-neutral-400">·</span> <?= e($u['customer_name']) ?></div>
-              <div class="text-xs text-neutral-500"><?= e($u['booking_date']) ?> at <?= e($u['start_time']) ?> · <?= e($u['staff_name']) ?></div>
+              <div class="text-xs text-neutral-500"><?= e($u['booking_date']) ?> at <?= e(format_time_display($u['start_time'])) ?> · <?= e($u['staff_name']) ?></div>
             </div>
             <a class="text-xs text-primary hover:underline" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
           </li>

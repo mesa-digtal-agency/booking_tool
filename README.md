@@ -91,6 +91,7 @@ You can now log in at `/admin/login.php`.
 | `smtp_host` / `smtp_port` / `smtp_username` / `smtp_password` / `smtp_encryption` | SMTP settings (`tls`, `ssl`, or empty) |
 | `from_email`, `from_name` | Outgoing email identity |
 | `slot_interval_minutes` | Booking slot grid step (15 or 30 recommended) |
+| `time_format` | `"24h"` (default, e.g. `14:30`) or `"12h"` (e.g. `2:30 PM`) |
 
 ---
 

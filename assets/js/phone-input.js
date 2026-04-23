@@ -68,12 +68,16 @@
     }
 
     const wrap = document.createElement('div');
-    wrap.className = 'flex gap-2';
+    // Compact grid: fixed-width select, input takes the rest. min-w-0 allows
+    // the input to shrink inside narrow columns (e.g. md:grid-cols-2).
+    wrap.className = 'flex gap-2 items-stretch';
     wrap.innerHTML =
-      '<select class="px-2 py-2 rounded-lg border border-neutral-200 text-sm bg-white min-w-[110px]" data-cc>' +
-      COUNTRIES.map(c => `<option value="${c.cc}" ${c.cc === startCc ? 'selected' : ''}>${c.iso} ${c.cc}</option>`).join('') +
+      '<select class="w-[84px] px-2 py-2 rounded-lg border border-neutral-200 text-sm bg-white flex-shrink-0" data-cc>' +
+      // Collapsed option shows just the dial code (e.g. "+971"); expanded option
+      // shows the country + code for disambiguation.
+      COUNTRIES.map(c => `<option value="${c.cc}" ${c.cc === startCc ? 'selected' : ''} data-short="${c.cc}" title="${c.name} ${c.cc}">${c.iso} ${c.cc}</option>`).join('') +
       '</select>' +
-      `<input type="tel" inputmode="tel" autocomplete="tel-national" class="${inputClass} flex-1" data-num ${required ? 'required' : ''} value="${escapeAttr(startNum)}" placeholder="555-1234">` +
+      `<input type="tel" inputmode="tel" autocomplete="tel-national" class="${inputClass} flex-1 min-w-0" data-num ${required ? 'required' : ''} value="${escapeAttr(startNum)}" placeholder="Phone number">` +
       `<input type="hidden" name="${escapeAttr(name)}" data-combined>`;
 
     container.appendChild(wrap);

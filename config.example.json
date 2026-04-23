@@ -30,5 +30,8 @@
   "from_name": "My Salon",
 
   "_comment_slots": "Slot grid step in minutes (15 or 30 recommended).",
-  "slot_interval_minutes": 30
+  "slot_interval_minutes": 30,
+
+  "_comment_time_format": "Display time format: '24h' (e.g. 14:30) or '12h' (e.g. 2:30 PM). Affects the admin clock, calendar, booking table, customer booking slots, and emails.",
+  "time_format": "24h"
 }

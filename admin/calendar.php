@@ -132,7 +132,7 @@ admin_header();
         <!-- Time grid -->
         <div class="relative">
             <?php for ($h = $hour_start; $h < $hour_end; $h++): ?>
-                <div class="h-20 text-right pr-2 text-[11px] text-neutral-400 border-t border-neutral-100"><?= sprintf('%02d:00', $h) ?></div>
+                <div class="h-20 text-right pr-2 text-[11px] text-neutral-400 border-t border-neutral-100"><?= e(format_time_display(sprintf('%02d:00', $h))) ?></div>
             <?php endfor; ?>
         </div>
         <?php foreach ($days as $d): ?>
@@ -157,7 +157,7 @@ admin_header();
                        <div class="font-medium truncate">Blocked · <?= e($item['staff_name']) ?></div>
                        <div class="text-neutral-500 truncate"><?= e($item['reason']) ?></div>
                    <?php else: ?>
-                       <div class="font-medium truncate"><?= e($item['start_time']) ?> <?= e($item['customer_name']) ?></div>
+                       <div class="font-medium truncate"><?= e(format_time_display($item['start_time'])) ?> <?= e($item['customer_name']) ?></div>
                        <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> · <?= e($item['staff_name']) ?></div>
                    <?php endif; ?>
                 </a>

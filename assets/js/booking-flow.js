@@ -36,6 +36,19 @@
     return data;
   }
 
+  const TIME_FORMAT = document.body.dataset.timeFormat || '24h';
+  function fmtTime(hhmm) {
+    if (!hhmm) return '';
+    const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
+    if (!m) return hhmm;
+    let h = +m[1], i = m[2];
+    if (TIME_FORMAT === '12h') {
+      const suf = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      return h + ':' + i + ' ' + suf;
+    }
+    return String(m[1]).padStart(2, '0') + ':' + i;
+  }
   function fmtMoney(n) {
     return '$' + Number(n).toFixed(2);
   }
@@ -205,7 +218,7 @@
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'py-2 rounded-lg border border-neutral-200 text-sm hover:border-primary hover:text-primary transition';
-        b.textContent = t;
+        b.textContent = fmtTime(t);
         b.addEventListener('click', () => {
           state.time = t;
           showStep(4);
@@ -247,7 +260,7 @@
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Service</div><div class="font-medium">${escapeHtml(state.service.name)}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Professional</div><div class="font-medium">${state.staff ? escapeHtml(state.staff.name) : 'Any available'}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Date</div><div class="font-medium">${fmtDateHuman(state.date)}</div></div>
-      <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Time</div><div class="font-medium">${state.time} (${fmtMinutes(state.service.duration_minutes)})</div></div>
+      <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Time</div><div class="font-medium">${fmtTime(state.time)} (${fmtMinutes(state.service.duration_minutes)})</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Name</div><div class="font-medium">${escapeHtml(state.details.customer_name)}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Contact</div><div class="font-medium text-right">${escapeHtml(state.details.customer_email)}<br>${escapeHtml(state.details.customer_phone)}</div></div>
       <hr class="my-2">
@@ -270,7 +283,7 @@
       document.getElementById('successDetails').innerHTML = `
         <div class="flex items-center justify-between"><div class="text-neutral-500">Service</div><div>${escapeHtml(booking.service_name)}</div></div>
         <div class="flex items-center justify-between"><div class="text-neutral-500">With</div><div>${escapeHtml(booking.staff_name)}</div></div>
-        <div class="flex items-center justify-between"><div class="text-neutral-500">When</div><div>${fmtDateHuman(booking.booking_date)} at ${booking.start_time}</div></div>
+        <div class="flex items-center justify-between"><div class="text-neutral-500">When</div><div>${fmtDateHuman(booking.booking_date)} at ${fmtTime(booking.start_time)}</div></div>
         <div class="flex items-center justify-between"><div class="text-neutral-500">Total</div><div>${fmtMoney(booking.price)}</div></div>
         <div class="mt-3 text-xs text-neutral-500 break-all">Manage your booking: <a href="${management_url}" class="underline">${management_url}</a></div>`;
       document.getElementById('cart').classList.add('hidden');
@@ -293,7 +306,7 @@
       cart.classList.add('hidden'); return;
     }
     const parts = [state.service.name + ' · ' + fmtMoney(state.service.price)];
-    if (state.time) parts.push(fmtDateHuman(state.date) + ' ' + state.time);
+    if (state.time) parts.push(fmtDateHuman(state.date) + ' ' + fmtTime(state.time));
     sum.textContent = parts.join(' — ');
     cart.classList.remove('hidden');
     // Continue button is only meaningful when we've chosen a time but haven't entered details yet.
