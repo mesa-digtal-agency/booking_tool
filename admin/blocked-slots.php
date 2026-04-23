@@ -1,0 +1,114 @@
+<?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/admin-layout.php';
+
+require_login();
+$page_title = 'Blocked slots';
+$active = 'blocked';
+
+$scope = scope_staff_id();
+$staff_list = is_admin()
+    ? db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name")
+    : db_all("SELECT id, name FROM staff WHERE id = ? AND is_active = 1", [(int)$scope]);
+
+$errors = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
+    $action = (string)($_POST['action'] ?? 'create');
+
+    if ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        $row = db_fetch("SELECT * FROM blocked_slots WHERE id = ?", [$id]);
+        if ($row && ($scope === null || (int)$row['staff_id'] === $scope)) {
+            db_exec("DELETE FROM blocked_slots WHERE id = ?", [$id]);
+            flash('ok', 'Blocked slot removed.');
+        }
+        redirect('/admin/blocked-slots.php');
+    }
+
+    $staff_id = (int)($_POST['staff_id'] ?? ($scope ?? 0));
+    if ($scope !== null) $staff_id = (int)$scope;
+    $date  = str_in($_POST, 'date', 10);
+    $start = normalize_time(str_in($_POST, 'start_time', 8)) ?? '';
+    $end   = normalize_time(str_in($_POST, 'end_time', 8)) ?? '';
+    $reason = str_in($_POST, 'reason', 255);
+
+    if ($staff_id <= 0) $errors[] = 'Staff is required.';
+    if (!is_valid_date($date)) $errors[] = 'Date is required.';
+    if (!is_valid_time($start) || !is_valid_time($end)) $errors[] = 'Start and end times are required.';
+    if (!$errors && time_to_minutes($end) <= time_to_minutes($start)) $errors[] = 'End time must be after start time.';
+
+    if (!$errors) {
+        db_insert("INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason) VALUES (?,?,?,?,?)",
+            [$staff_id, $date, $start, $end, $reason]);
+        flash('ok', 'Blocked slot added.');
+        redirect('/admin/blocked-slots.php');
+    }
+}
+
+$where = "date >= ?";
+$params = [date('Y-m-d', strtotime('-7 days'))];
+if ($scope !== null) { $where .= " AND staff_id = ?"; $params[] = (int)$scope; }
+$rows = db_all("SELECT bs.*, st.name AS staff_name FROM blocked_slots bs JOIN staff st ON st.id = bs.staff_id WHERE $where ORDER BY date DESC, start_time", $params);
+
+admin_header();
+?>
+<?= flash_render() ?>
+<h1 class="text-2xl font-semibold mb-4">Blocked slots</h1>
+
+<?php if ($errors): ?>
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm mb-4">
+    <?php foreach ($errors as $er) echo '<div>' . e($er) . '</div>'; ?>
+  </div>
+<?php endif; ?>
+
+<form method="post" class="bg-white border border-neutral-200 rounded-xl p-5 mb-6 max-w-3xl grid md:grid-cols-5 gap-3 text-sm">
+  <?= csrf_field() ?>
+  <?php if (is_admin()): ?>
+  <label>Staff
+    <select name="staff_id" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+      <?php foreach ($staff_list as $s): ?><option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?></option><?php endforeach; ?>
+    </select>
+  </label>
+  <?php endif; ?>
+  <label>Date <input type="date" name="date" required class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+  <label>Start <input type="time" name="start_time" required value="09:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+  <label>End <input type="time" name="end_time" required value="10:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+  <label class="md:col-span-<?= is_admin() ? '5' : '4' ?>">Reason <input name="reason" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md" placeholder="e.g. Lunch, vacation"></label>
+  <div class="md:col-span-5"><button class="px-4 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Add block</button></div>
+</form>
+
+<div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-neutral-50 text-left text-neutral-500 text-xs uppercase">
+      <tr>
+        <th class="px-3 py-2">Date</th>
+        <th class="px-3 py-2">Time</th>
+        <th class="px-3 py-2">Staff</th>
+        <th class="px-3 py-2">Reason</th>
+        <th class="px-3 py-2"></th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (!$rows): ?><tr><td colspan="5" class="px-3 py-8 text-center text-neutral-500">No blocked slots.</td></tr><?php endif; ?>
+    <?php foreach ($rows as $r): ?>
+      <tr class="border-t border-neutral-100">
+        <td class="px-3 py-2"><?= e($r['date']) ?></td>
+        <td class="px-3 py-2"><?= e($r['start_time']) ?> – <?= e($r['end_time']) ?></td>
+        <td class="px-3 py-2"><?= e($r['staff_name']) ?></td>
+        <td class="px-3 py-2"><?= e($r['reason']) ?></td>
+        <td class="px-3 py-2 text-right">
+          <form method="post" class="inline" onsubmit="return confirm('Remove this blocked slot?')">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+            <button class="text-red-600 hover:underline">Remove</button>
+          </form>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+</div>
+<?php admin_footer(); ?>

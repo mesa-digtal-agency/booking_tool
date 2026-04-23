@@ -1,0 +1,23 @@
+# Deny direct access to config and sqlite files
+<FilesMatch "^(config\.json|config\.example\.json|schema\.sql|\.gitignore)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(sqlite|sqlite-journal|db)$">
+    Require all denied
+</FilesMatch>
+
+# Fallback for Apache < 2.4
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^(config\.json|config\.example\.json|schema\.sql)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+    <FilesMatch "\.(sqlite|sqlite-journal|db)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+# Pretty errors off in prod (PHP-level setting controlled in config)
+Options -Indexes

@@ -1,0 +1,30 @@
+{
+  "_comment_db": "Database: 'sqlite' (default, zero-config) or 'mysql'.",
+  "db_type": "sqlite",
+  "db_path": "data/booking.sqlite",
+  "db_host": "localhost",
+  "db_port": 3306,
+  "db_name": "booking",
+  "db_user": "",
+  "db_password": "",
+
+  "_comment_business": "Branding + locale. Timezone must be a valid PHP timezone (e.g. 'America/New_York', 'Europe/London').",
+  "business_name": "My Salon",
+  "business_timezone": "America/New_York",
+  "business_logo_url": "",
+  "app_url": "https://yourdomain.com",
+  "primary_color": "#7c3aed",
+
+  "_comment_mail": "mail_driver: 'mail' uses PHP mail(); 'smtp' uses the built-in SMTP client. smtp_encryption: 'tls', 'ssl', or ''.",
+  "mail_driver": "mail",
+  "smtp_host": "",
+  "smtp_port": 587,
+  "smtp_username": "",
+  "smtp_password": "",
+  "smtp_encryption": "tls",
+  "from_email": "no-reply@yourdomain.com",
+  "from_name": "My Salon",
+
+  "_comment_slots": "Slot grid step in minutes (15 or 30 recommended).",
+  "slot_interval_minutes": 30
+}

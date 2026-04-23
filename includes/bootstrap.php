@@ -1,0 +1,93 @@
+<?php
+/**
+ * Bootstrap: loads config, sets timezone, starts session, opens DB.
+ * Every public entry point (index.php, api/*.php, admin/*.php, setup.php) requires this file.
+ */
+
+// PHP 7.4+
+if (PHP_VERSION_ID < 70400) {
+    http_response_code(500);
+    exit('PHP 7.4+ required.');
+}
+
+// Strict error handling — surface issues in dev, log in prod.
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+define('APP_ROOT', dirname(__DIR__));
+
+/**
+ * Load config.json. Strips comment keys starting with "_comment".
+ */
+function load_config(): array {
+    $path = APP_ROOT . '/config.json';
+    if (!is_file($path)) {
+        http_response_code(500);
+        exit('Missing config.json. Copy config.example.json to config.json and edit it.');
+    }
+    $raw = file_get_contents($path);
+    $cfg = json_decode($raw, true);
+    if (!is_array($cfg)) {
+        http_response_code(500);
+        exit('config.json is not valid JSON.');
+    }
+    foreach (array_keys($cfg) as $k) {
+        if (strpos($k, '_comment') === 0) {
+            unset($cfg[$k]);
+        }
+    }
+    // Defaults
+    $cfg += [
+        'db_type' => 'sqlite',
+        'db_path' => 'data/booking.sqlite',
+        'db_host' => 'localhost',
+        'db_port' => 3306,
+        'db_name' => '',
+        'db_user' => '',
+        'db_password' => '',
+        'business_name' => 'My Salon',
+        'business_timezone' => 'UTC',
+        'business_logo_url' => '',
+        'app_url' => '',
+        'primary_color' => '#7c3aed',
+        'mail_driver' => 'mail',
+        'smtp_host' => '',
+        'smtp_port' => 587,
+        'smtp_username' => '',
+        'smtp_password' => '',
+        'smtp_encryption' => 'tls',
+        'from_email' => 'no-reply@example.com',
+        'from_name' => 'My Salon',
+        'slot_interval_minutes' => 30,
+    ];
+    return $cfg;
+}
+
+$CONFIG = load_config();
+$GLOBALS['CONFIG'] = $CONFIG;
+
+// Timezone
+@date_default_timezone_set($CONFIG['business_timezone'] ?: 'UTC');
+
+// Session config (secure defaults, SameSite=Lax)
+if (session_status() === PHP_SESSION_NONE) {
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => '',
+        'secure' => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_name('BOOKSID');
+    session_start();
+}
+
+require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/csrf.php';
+require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/mailer.php';

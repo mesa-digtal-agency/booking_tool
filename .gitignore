@@ -1,0 +1,8 @@
+config.json
+data/*.sqlite
+data/*.sqlite-journal
+data/*.db
+assets/avatars/*
+!assets/avatars/.gitkeep
+.DS_Store
+*.log
