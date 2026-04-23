@@ -1,0 +1,306 @@
+<?php
+/**
+ * API test harness.
+ *
+ * A single-page developer tool for exercising every /api/ endpoint
+ * (services, staff, availability, bookings, booking lookup, cancel,
+ * reschedule) without going through the multi-step customer flow.
+ *
+ * Shows request URL/body + raw response JSON + HTTP status for every
+ * call, so it's handy for debugging.
+ *
+ * URL: /api-test.php
+ * Safe to delete (or restrict) on production.
+ */
+require_once __DIR__ . '/includes/bootstrap.php';
+?><!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API test · <?= e(business_name()) ?></title>
+<meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+<style>
+  :root { --p: <?= e(primary_color()) ?>; }
+  * { box-sizing: border-box; }
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
+  h1 { color: #fff; margin: 0 0 4px; font-size: 20px; }
+  h2 { color: #fff; margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .sub { color: #94a3b8; font-size: 12px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  section { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+  label { display: block; font-size: 12px; color: #94a3b8; margin: 8px 0 2px; }
+  input, select, textarea, button {
+    width: 100%; padding: 7px 9px; font-size: 13px;
+    background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--p); border-color: var(--p); }
+  button { background: var(--p); border: 0; color: #fff; font-weight: 600; cursor: pointer; margin-top: 10px; }
+  button:hover { filter: brightness(1.1); }
+  button.sec { background: #334155; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; background: #334155; margin-right: 6px; }
+  .tag.get { background: #065f46; }
+  .tag.post { background: #7c2d12; }
+  pre { margin: 0; padding: 10px; background: #020617; border-radius: 6px; color: #cbd5e1; font-size: 11px; overflow: auto; max-height: 260px; white-space: pre-wrap; word-break: break-word; }
+  .status { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #334155; color: #cbd5e1; }
+  .status.ok { background: #065f46; color: #a7f3d0; }
+  .status.err { background: #7f1d1d; color: #fecaca; }
+  .muted { color: #64748b; font-size: 11px; }
+  .stack > * + * { margin-top: 6px; }
+  a { color: #93c5fd; }
+  hr { border: 0; border-top: 1px solid #334155; margin: 12px 0; }
+  .req-url { font-size: 11px; color: #94a3b8; word-break: break-all; }
+</style>
+</head>
+<body>
+<h1>API test harness</h1>
+<div class="sub">
+  Calls <code>/api/*</code> with the CSRF token of this session. All timestamps use the server timezone
+  (<?= e($GLOBALS['CONFIG']['business_timezone']) ?>). <a href="/">Back to booking</a> · <a href="/admin/login.php">Admin</a>
+</div>
+
+<div class="grid">
+
+  <!-- 1. Services ----------------------------------------------------->
+  <section>
+    <h2><span class="tag get">GET</span> /api/services.php</h2>
+    <button onclick="callServices()">Fetch services</button>
+    <div class="req-url" id="services-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="services-status">—</span></div>
+      <pre id="services-out">(no request yet)</pre>
+    </div>
+  </section>
+
+  <!-- 2. Staff for a service ----------------------------------------->
+  <section>
+    <h2><span class="tag get">GET</span> /api/staff.php</h2>
+    <label>service_id</label>
+    <input id="staff-service-id" type="number" placeholder="e.g. 1">
+    <button onclick="callStaff()">Fetch staff</button>
+    <div class="req-url" id="staff-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="staff-status">—</span></div>
+      <pre id="staff-out">(no request yet)</pre>
+    </div>
+  </section>
+
+  <!-- 3. Availability ------------------------------------------------->
+  <section>
+    <h2><span class="tag get">GET</span> /api/availability.php</h2>
+    <div class="row">
+      <div>
+        <label>service_id</label>
+        <input id="av-service-id" type="number" placeholder="e.g. 1">
+      </div>
+      <div>
+        <label>staff_id <span class="muted">(or "any")</span></label>
+        <input id="av-staff-id" placeholder="any">
+      </div>
+    </div>
+    <label>date (YYYY-MM-DD)</label>
+    <input id="av-date" type="date">
+    <button onclick="callAvailability()">Fetch slots</button>
+    <div class="req-url" id="av-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="av-status">—</span></div>
+      <pre id="av-out">(no request yet)</pre>
+    </div>
+  </section>
+
+  <!-- 4. Create booking ---------------------------------------------->
+  <section>
+    <h2><span class="tag post">POST</span> /api/bookings.php</h2>
+    <div class="row">
+      <div>
+        <label>service_id</label>
+        <input id="b-service-id" type="number" placeholder="1">
+      </div>
+      <div>
+        <label>staff_id</label>
+        <input id="b-staff-id" value="any">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>date</label>
+        <input id="b-date" type="date">
+      </div>
+      <div>
+        <label>time (HH:MM)</label>
+        <input id="b-time" type="time">
+      </div>
+    </div>
+    <label>customer_name</label>
+    <input id="b-name" value="Test Customer">
+    <div class="row">
+      <div>
+        <label>customer_email</label>
+        <input id="b-email" type="email" value="test@example.com">
+      </div>
+      <div>
+        <label>customer_phone</label>
+        <input id="b-phone" value="555-0123">
+      </div>
+    </div>
+    <label>notes</label>
+    <textarea id="b-notes" rows="2"></textarea>
+    <button onclick="callCreateBooking()">Create booking</button>
+    <div class="req-url" id="b-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="b-status">—</span> <span class="muted" id="b-token"></span></div>
+      <pre id="b-out">(no request yet)</pre>
+    </div>
+  </section>
+
+  <!-- 5. Fetch by token ---------------------------------------------->
+  <section>
+    <h2><span class="tag get">GET</span> /api/booking.php</h2>
+    <label>token <span class="muted">(auto-filled from last create)</span></label>
+    <input id="lookup-token" placeholder="uuid">
+    <button onclick="callLookup()">Look up booking</button>
+    <div class="req-url" id="lookup-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="lookup-status">—</span></div>
+      <pre id="lookup-out">(no request yet)</pre>
+    </div>
+  </section>
+
+  <!-- 6. Booking actions --------------------------------------------->
+  <section>
+    <h2><span class="tag post">POST</span> /api/booking-action.php</h2>
+    <label>token</label>
+    <input id="act-token" placeholder="uuid">
+    <label>action</label>
+    <select id="act-action">
+      <option value="cancel">cancel</option>
+      <option value="reschedule">reschedule</option>
+    </select>
+    <div id="act-reschedule-fields" style="display:none;">
+      <div class="row">
+        <div>
+          <label>new_date</label>
+          <input id="act-new-date" type="date">
+        </div>
+        <div>
+          <label>new_time</label>
+          <input id="act-new-time" type="time">
+        </div>
+      </div>
+    </div>
+    <button onclick="callAction()">Submit action</button>
+    <div class="req-url" id="act-url"></div>
+    <div class="stack" style="margin-top:8px;">
+      <div><span class="status" id="act-status">—</span></div>
+      <pre id="act-out">(no request yet)</pre>
+    </div>
+  </section>
+
+</div>
+
+<hr>
+<div class="muted">
+  Tip: chain the calls — fetch services → copy an id → fetch staff → pick staff → fetch availability → pick time → create booking →
+  token auto-fills the lookup + action forms below.
+</div>
+
+<script>
+const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+function setState(prefix, status, httpCode, data, extra) {
+  const st = document.getElementById(prefix + '-status');
+  st.textContent = 'HTTP ' + httpCode;
+  st.className = 'status ' + (httpCode >= 200 && httpCode < 300 ? 'ok' : 'err');
+  const out = document.getElementById(prefix + '-out');
+  out.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  if (extra) extra();
+}
+
+function setUrl(prefix, method, url, body) {
+  const el = document.getElementById(prefix + '-url');
+  el.textContent = method + ' ' + url + (body ? '   body=' + JSON.stringify(body) : '');
+}
+
+async function go(prefix, method, url, body) {
+  setUrl(prefix, method, url, body || null);
+  const headers = { 'Accept': 'application/json' };
+  const opts = { method, headers };
+  if (method === 'POST') {
+    headers['Content-Type'] = 'application/json';
+    headers['X-CSRF-Token'] = CSRF;
+    opts.body = JSON.stringify(body || {});
+  }
+  try {
+    const res = await fetch(url, opts);
+    let data;
+    try { data = await res.json(); } catch { data = await res.text(); }
+    setState(prefix, '', res.status, data);
+    return { status: res.status, data };
+  } catch (e) {
+    setState(prefix, '', 0, 'Network error: ' + e.message);
+    return { status: 0, data: null };
+  }
+}
+
+function callServices()     { return go('services', 'GET', '/api/services.php'); }
+function callStaff()        { const id = +document.getElementById('staff-service-id').value; return go('staff', 'GET', '/api/staff.php?service_id=' + id); }
+function callAvailability() {
+  const sid = +document.getElementById('av-service-id').value;
+  const st  = document.getElementById('av-staff-id').value || 'any';
+  const d   = document.getElementById('av-date').value;
+  return go('av', 'GET', `/api/availability.php?service_id=${sid}&staff_id=${encodeURIComponent(st)}&date=${d}`);
+}
+async function callCreateBooking() {
+  const body = {
+    service_id:     +document.getElementById('b-service-id').value,
+    staff_id:       document.getElementById('b-staff-id').value || 'any',
+    date:           document.getElementById('b-date').value,
+    time:           document.getElementById('b-time').value,
+    customer_name:  document.getElementById('b-name').value,
+    customer_email: document.getElementById('b-email').value,
+    customer_phone: document.getElementById('b-phone').value,
+    notes:          document.getElementById('b-notes').value,
+  };
+  const r = await go('b', 'POST', '/api/bookings.php', body);
+  const tok = r.data && r.data.booking && r.data.booking.management_token;
+  if (tok) {
+    document.getElementById('b-token').textContent = 'token=' + tok;
+    document.getElementById('lookup-token').value = tok;
+    document.getElementById('act-token').value = tok;
+  }
+}
+function callLookup() {
+  const tok = document.getElementById('lookup-token').value.trim();
+  return go('lookup', 'GET', '/api/booking.php?token=' + encodeURIComponent(tok));
+}
+function callAction() {
+  const body = {
+    token: document.getElementById('act-token').value.trim(),
+    action: document.getElementById('act-action').value,
+  };
+  if (body.action === 'reschedule') {
+    body.new_date = document.getElementById('act-new-date').value;
+    body.new_time = document.getElementById('act-new-time').value;
+  }
+  return go('act', 'POST', '/api/booking-action.php', body);
+}
+
+document.getElementById('act-action').addEventListener('change', function(){
+  document.getElementById('act-reschedule-fields').style.display =
+    this.value === 'reschedule' ? 'block' : 'none';
+});
+
+// Prefill date fields with tomorrow so you have a valid future date.
+(function prefill(){
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  const iso = d.toISOString().slice(0,10);
+  ['av-date','b-date','act-new-date'].forEach(id => { const el = document.getElementById(id); if (el && !el.value) el.value = iso; });
+  const b = document.getElementById('b-time'); if (b && !b.value) b.value = '10:00';
+  const a = document.getElementById('act-new-time'); if (a && !a.value) a.value = '11:00';
+})();
+</script>
+</body>
+</html>
