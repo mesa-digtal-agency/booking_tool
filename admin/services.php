@@ -85,9 +85,7 @@ admin_header();
 
 <?php if (is_admin() && ($editing || isset($_GET['new']))): ?>
   <?php if ($errors): ?>
-    <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm mb-4">
-      <?php foreach ($errors as $er) echo '<div>' . e($er) . '</div>'; ?>
-    </div>
+    <script>window.addEventListener('DOMContentLoaded', function(){ <?php foreach ($errors as $er) echo 'window.toast && window.toast(' . json_encode($er) . ', { type: "error", timeout: 7000 });'; ?> });</script>
   <?php endif; ?>
   <form method="post" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3 mb-6 max-w-3xl">
     <?= csrf_field() ?>

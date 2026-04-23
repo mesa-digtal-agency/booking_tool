@@ -132,3 +132,52 @@ function primary_color(): string {
     $c = (string)($GLOBALS['CONFIG']['primary_color'] ?? '#7c3aed');
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : '#7c3aed';
 }
+
+/**
+ * Resolve the logo URL. Returns '' if no logo is configured.
+ * Prefers `logo_path` (local), falls back to `business_logo_url` (absolute).
+ */
+function logo_url(): string {
+    $cfg = $GLOBALS['CONFIG'];
+    $local = trim((string)($cfg['logo_path'] ?? ''));
+    if ($local !== '') {
+        // Ensure web-path (with leading slash). Strip APP_ROOT prefix if present.
+        $local = str_replace('\\', '/', $local);
+        if (strpos($local, APP_ROOT) === 0) $local = substr($local, strlen(APP_ROOT));
+        if ($local !== '' && $local[0] !== '/') $local = '/' . ltrim($local, '/');
+        return $local;
+    }
+    return (string)($cfg['business_logo_url'] ?? '');
+}
+
+/** Sidebar display mode: 'logo_and_name' (default) or 'logo_only'. */
+function logo_mode(): string {
+    $m = (string)($GLOBALS['CONFIG']['logo_mode'] ?? 'logo_and_name');
+    return $m === 'logo_only' ? 'logo_only' : 'logo_and_name';
+}
+
+/**
+ * Transition any confirmed/pending bookings whose end_time has passed to
+ * "completed". Called opportunistically on admin page loads — lightweight
+ * single UPDATE so it's safe to call often.
+ */
+function auto_complete_elapsed_bookings(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $today = date('Y-m-d');
+    $now   = date('H:i');
+    try {
+        db_exec(
+            "UPDATE bookings
+                SET status = 'completed'
+              WHERE status IN ('confirmed','pending')
+                AND (booking_date < ?
+                     OR (booking_date = ? AND end_time <= ?))",
+            [$today, $today, $now]
+        );
+    } catch (Throwable $e) {
+        // Swallow — auto-complete is best-effort.
+        error_log('auto_complete failed: ' . $e->getMessage());
+    }
+}

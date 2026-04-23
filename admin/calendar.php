@@ -118,7 +118,7 @@ admin_header();
     <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="/admin/blocked-slots.php">+ Block time</a>
 </div>
 
-<div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+<div class="bg-white border border-neutral-200 rounded-xl overflow-hidden calendar-scroll">
     <div class="grid" style="grid-template-columns: 60px repeat(<?= count($days) ?>, 1fr);">
         <!-- Header row -->
         <div></div>

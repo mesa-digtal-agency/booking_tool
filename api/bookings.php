@@ -66,17 +66,15 @@ $token = uuid_v4();
 try {
     db()->beginTransaction();
 
-    // Re-check conflict inside the transaction to close the race window.
-    $conflict = db_scalar(
-        "SELECT 1 FROM bookings
-         WHERE staff_id = ? AND booking_date = ? AND status IN ('pending','confirmed')
-         AND NOT (end_time <= ? OR start_time >= ?)
-         LIMIT 1",
-        [$staff_id, $date, $time, $end_time]
-    );
-    if ($conflict) {
+    // Re-check inside the transaction to close the race window — both
+    // existing bookings AND blocked slots must be conflict-free.
+    if (has_booking_conflict($staff_id, $date, $time, $end_time)) {
         db()->rollBack();
         json_error('That time is no longer available.', 409);
+    }
+    if (has_blocked_overlap($staff_id, $date, $time, $end_time)) {
+        db()->rollBack();
+        json_error('That time is blocked off and cannot be booked.', 409);
     }
 
     $id = db_insert(

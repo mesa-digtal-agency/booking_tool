@@ -6,13 +6,29 @@ a single `config.json` — no Composer, no npm, no build step.
 
 ## Features
 
-- **Customer booking flow** — multi-step, mobile-first: service → professional → date & time → details → confirmation.
+- **Customer booking flow** (`/book.php`) — multi-step, mobile-first: service → professional → date & time → details → confirmation. Phone input has a country-code picker + per-country digit validation.
 - **Self-service management** — every booking gets a unique emailed link (`/manage-booking.php?token=...`) where the customer can cancel or reschedule. Reschedule is disabled within 24 hours of the appointment.
-- **REST API** — 6 JSON endpoints under `/api/` for services, staff, availability, bookings, and booking actions.
-- **Admin panel** — dashboard with Chart.js analytics, weekly/daily calendar, bookings table with filters + CSV export, services/staff CRUD, working-hours editor, blocked-slot editor.
+- **REST API** — 6 JSON endpoints under `/api/` for services, staff, availability, bookings, and booking actions, plus `/api/csrf.php` for the current session's CSRF token.
+- **Admin panel** (`/admin/`) — fixed sidebar with live clock, dashboard with Chart.js analytics, weekly/daily calendar, bookings table with filters + CSV export, services/staff CRUD, working-hours editor, blocked-slot editor. Bookings auto-transition to `completed` once the end time passes.
+- **Password reset** — forgot/reset flow for admins and staff with a time-limited emailed link.
 - **Roles** — `admin` sees everything; `staff` only sees their own calendar and bookings.
 - **Emails** — PHP `mail()` or built-in single-file SMTP client (no PHPMailer / Composer needed).
 - **Security** — prepared statements everywhere, CSRF tokens on all forms and POST API calls, session regeneration on login, secure cookies, password hashing via `password_hash()`.
+
+## URL map
+
+| Path | Purpose |
+| --- | --- |
+| `/` | Landing — redirects to `/setup.php` if not installed, `/admin/` if logged in, else `/admin/login.php`. |
+| `/book.php` | Public customer booking flow. |
+| `/manage-booking.php?token=...` | Customer self-service page (from the confirmation email). |
+| `/setup.php` | One-time installer. Delete after first run. |
+| `/admin/login.php` | Staff/admin login. |
+| `/admin/forgot-password.php` | Request a password-reset email. |
+| `/admin/reset-password.php?token=...` | Set a new password. |
+| `/admin/...` | Admin pages: dashboard, calendar, bookings, services, staff, working hours, blocked slots. |
+| `/api/...` | REST endpoints (see below). |
+| `/api-test.html` | Developer test harness — static HTML + `/api/csrf.php`. Safe to delete in production. |
 
 ---
 
@@ -66,7 +82,9 @@ You can now log in at `/admin/login.php`.
 | `db_host`, `db_port`, `db_name`, `db_user`, `db_password` | MySQL credentials |
 | `business_name` | Displayed in UI, emails, page titles |
 | `business_timezone` | Any valid PHP timezone (e.g. `America/New_York`) |
-| `business_logo_url` | Optional logo URL for header & emails |
+| `business_logo_url` | Optional remote logo URL (falls back if `logo_path` is empty) |
+| `logo_path` | Local SVG/PNG path (relative to project root, e.g. `assets/img/logo.svg`) |
+| `logo_mode` | `logo_and_name` (default) or `logo_only` — controls sidebar layout |
 | `app_url` | Public base URL — used to build absolute management links |
 | `primary_color` | Brand accent color (hex) |
 | `mail_driver` | `"mail"` (PHP `mail()`) or `"smtp"` |

@@ -220,11 +220,21 @@
   // Step 4: Details
   document.getElementById('detailsForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    // Native validity on HTML inputs (including the phone-input's inner <input>).
+    if (!e.target.checkValidity()) {
+      e.target.reportValidity();
+      return;
+    }
     const fd = new FormData(e.target);
+    const phone = (fd.get('customer_phone') || '').trim();
+    if (!phone) {
+      window.toast && window.toast('Please enter your phone number.', { type: 'error' });
+      return;
+    }
     state.details = {
       customer_name: fd.get('customer_name').trim(),
       customer_email: fd.get('customer_email').trim(),
-      customer_phone: fd.get('customer_phone').trim(),
+      customer_phone: phone,
       notes: (fd.get('notes') || '').trim(),
     };
     renderReview();
@@ -247,8 +257,7 @@
   // Step 5: Confirm
   document.getElementById('confirmBtn').addEventListener('click', async () => {
     const btn = document.getElementById('confirmBtn');
-    const err = document.getElementById('confirmError');
-    btn.disabled = true; btn.textContent = 'Booking…'; err.classList.add('hidden');
+    btn.disabled = true; btn.textContent = 'Booking…';
     try {
       const payload = {
         service_id: state.service.id,
@@ -265,10 +274,10 @@
         <div class="flex items-center justify-between"><div class="text-neutral-500">Total</div><div>${fmtMoney(booking.price)}</div></div>
         <div class="mt-3 text-xs text-neutral-500 break-all">Manage your booking: <a href="${management_url}" class="underline">${management_url}</a></div>`;
       document.getElementById('cart').classList.add('hidden');
+      window.toast && window.toast('Booking confirmed — check your email.', { type: 'success' });
       showStep('success');
     } catch (e) {
-      err.textContent = e.message || 'Something went wrong. Please try again.';
-      err.classList.remove('hidden');
+      window.toast && window.toast(e.message || 'Something went wrong. Please try again.', { type: 'error', timeout: 7000 });
     } finally {
       btn.disabled = false; btn.textContent = 'Confirm booking';
     }

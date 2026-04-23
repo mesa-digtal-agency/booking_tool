@@ -69,9 +69,20 @@ CREATE TABLE blocked_slots (
     FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
 );
 
+CREATE TABLE password_resets (
+    id {{AUTO_PK}},
+    staff_id INTEGER NOT NULL,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT {{NOW}},
+    FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
+);
+
 CREATE INDEX idx_bookings_date_staff ON bookings(booking_date, staff_id);
 CREATE INDEX idx_bookings_token ON bookings(management_token);
 CREATE INDEX idx_staff_services_staff ON staff_services(staff_id);
 CREATE INDEX idx_staff_services_service ON staff_services(service_id);
 CREATE INDEX idx_wh_staff_dow ON working_hours(staff_id, day_of_week);
 CREATE INDEX idx_blocked_staff_date ON blocked_slots(staff_id, date);
+CREATE INDEX idx_password_resets_staff ON password_resets(staff_id);

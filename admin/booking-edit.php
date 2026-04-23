@@ -63,16 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $end = compute_end_time($data['start_time'], (int)$svc['duration_minutes']);
         // Conflict check (skip the row we're editing and skip cancelled status).
-        $conflict = db_scalar(
-            "SELECT 1 FROM bookings
-             WHERE staff_id = ? AND booking_date = ? AND status IN ('pending','confirmed')
-             AND id <> ?
-             AND NOT (end_time <= ? OR start_time >= ?)
-             LIMIT 1",
-            [$data['staff_id'], $data['booking_date'], (int)($booking['id'] ?? 0), $data['start_time'], $end]
-        );
-        if ($conflict && $data['status'] !== 'cancelled') {
-            $errors[] = 'That time conflicts with another booking for the same staff member.';
+        if ($data['status'] !== 'cancelled') {
+            if (has_booking_conflict((int)$data['staff_id'], $data['booking_date'], $data['start_time'], $end, (int)($booking['id'] ?? 0))) {
+                $errors[] = 'That time conflicts with another booking for the same staff member.';
+            }
+            if (!$errors && has_blocked_overlap((int)$data['staff_id'], $data['booking_date'], $data['start_time'], $end)) {
+                $errors[] = 'That time overlaps a blocked slot for the selected staff member.';
+            }
         }
     }
 
@@ -133,9 +130,12 @@ admin_header();
 <h1 class="text-2xl font-semibold mb-4"><?= $booking && !empty($booking['id']) ? 'Edit booking' : 'New booking' ?></h1>
 
 <?php if ($errors): ?>
-  <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm mb-4">
-    <?php foreach ($errors as $er) echo '<div>' . e($er) . '</div>'; ?>
-  </div>
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+  <?php foreach ($errors as $er): ?>window.toast && window.toast(<?= json_encode($er) ?>, { type: 'error', timeout: 7000 });
+  <?php endforeach; ?>
+});
+</script>
 <?php endif; ?>
 
 <form id="bookingEditForm" method="post" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-4 max-w-2xl">
@@ -148,7 +148,8 @@ admin_header();
       <input name="customer_email" type="email" required value="<?= e($booking['customer_email'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
     </label>
     <label class="block text-sm">Phone
-      <input name="customer_phone" required value="<?= e($booking['customer_phone'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+      <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="+1"
+           data-value="<?= e($booking['customer_phone'] ?? '') ?>"></div>
     </label>
     <label class="block text-sm">Status
       <select name="status" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
@@ -229,11 +230,21 @@ admin_header();
     }
 
     if (reason) {
-      if (!confirm(reason + '\n\nBook anyway?')) {
-        e.preventDefault();
-      }
+      // Always intercept — we need a Promise-based confirm dialog.
+      e.preventDefault();
+      (async () => {
+        const ok = await window.confirmDialog(reason + '\n\nBook anyway?', {
+          danger: true, okLabel: 'Book anyway', cancelLabel: 'Cancel'
+        });
+        if (ok) {
+          // Temporarily disable this handler and resubmit.
+          form._skipCheck = true;
+          HTMLFormElement.prototype.submit.call(form);
+        }
+      })();
     }
   });
 })();
 </script>
+<script src="/assets/js/phone-input.js"></script>
 <?php admin_footer(); ?>

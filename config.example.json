@@ -12,6 +12,10 @@
   "business_name": "My Salon",
   "business_timezone": "America/New_York",
   "business_logo_url": "",
+  "_comment_logo": "Optional local logo path (SVG or PNG). Relative to project root, e.g. 'assets/img/logo.svg'. Used in the admin sidebar and customer pages.",
+  "logo_path": "",
+  "_comment_logo_mode": "Sidebar display: 'logo_and_name' shows the logo + the business name; 'logo_only' shows just the logo (full-width, centered).",
+  "logo_mode": "logo_and_name",
   "app_url": "https://yourdomain.com",
   "primary_color": "#7c3aed",
 

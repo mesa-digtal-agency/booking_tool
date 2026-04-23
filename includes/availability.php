@@ -140,3 +140,28 @@ function is_slot_free(int $staff_id, int $service_id, string $date, string $time
 function compute_end_time(string $start, int $duration_minutes): string {
     return minutes_to_time(time_to_minutes($start) + $duration_minutes);
 }
+
+/** True if [start,end) overlaps any blocked slot for the staff on that date. */
+function has_blocked_overlap(int $staff_id, string $date, string $start, string $end): bool {
+    $row = db_scalar(
+        "SELECT 1 FROM blocked_slots
+         WHERE staff_id = ? AND date = ?
+           AND NOT (end_time <= ? OR start_time >= ?)
+         LIMIT 1",
+        [$staff_id, $date, $start, $end]
+    );
+    return (bool)$row;
+}
+
+/** True if [start,end) overlaps another active booking for the staff on that date. */
+function has_booking_conflict(int $staff_id, string $date, string $start, string $end, int $exclude_booking_id = 0): bool {
+    $row = db_scalar(
+        "SELECT 1 FROM bookings
+         WHERE staff_id = ? AND booking_date = ? AND status IN ('pending','confirmed')
+           AND id <> ?
+           AND NOT (end_time <= ? OR start_time >= ?)
+         LIMIT 1",
+        [$staff_id, $date, $exclude_booking_id, $start, $end]
+    );
+    return (bool)$row;
+}

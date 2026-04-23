@@ -49,6 +49,8 @@ function load_config(): array {
         'business_name' => 'My Salon',
         'business_timezone' => 'UTC',
         'business_logo_url' => '',
+        'logo_path' => '',
+        'logo_mode' => 'logo_and_name',
         'app_url' => '',
         'primary_color' => '#7c3aed',
         'mail_driver' => 'mail',
@@ -91,3 +93,29 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/csrf.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/mailer.php';
+
+/**
+ * Lightweight per-request migration shim for tables added after v1.
+ * Safe to run on every request — the CREATE TABLE uses IF NOT EXISTS.
+ */
+function ensure_migrations(): void {
+    static $ran = false;
+    if ($ran) return;
+    try {
+        $pdo = db();
+        $auto_pk = db_driver() === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
+        $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
+            id {$auto_pk},
+            staff_id INTEGER NOT NULL,
+            token_hash VARCHAR(64) NOT NULL UNIQUE,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
+        )");
+        $ran = true;
+    } catch (Throwable $e) {
+        // Swallow — migrations should never break page loads.
+        error_log('ensure_migrations: ' . $e->getMessage());
+    }
+}
