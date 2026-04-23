@@ -15,7 +15,7 @@ $logo    = logo_url();
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
     </script>
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
     <style>:root{--primary-color: <?= e($primary) ?>;}</style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900">
@@ -139,8 +139,8 @@ $logo    = logo_url();
     </aside>
 </main>
 
-<script src="/assets/js/toast.js"></script>
-<script src="/assets/js/phone-input.js"></script>
-<script src="/assets/js/booking-flow.js"></script>
+<script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
+<script src="<?= e(asset('/assets/js/phone-input.js')) ?>"></script>
+<script src="<?= e(asset('/assets/js/booking-flow.js')) ?>"></script>
 </body>
 </html>

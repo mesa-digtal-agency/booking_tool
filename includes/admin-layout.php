@@ -6,6 +6,9 @@
  *   admin_header();
  *     ... content ...
  *   admin_footer();
+ *
+ * Layout uses Tailwind utility classes directly (robust to CSS cache
+ * misses) with custom polish in /assets/css/app.css.
  */
 
 function admin_nav_items(): array {
@@ -30,17 +33,16 @@ function render_sidebar_logo(): string {
     $primary = primary_color();
 
     if ($mode === 'logo_only' && $logo) {
-        return '<div class="logo-slot logo-only">
-                    <img src="' . e($logo) . '" alt="' . e($biz) . '">
+        return '<div class="px-1 py-2 mb-3 flex items-center justify-center">
+                    <img src="' . e($logo) . '" alt="' . e($biz) . '" class="block max-w-full h-auto max-h-24">
                 </div>';
     }
-    // Either logo + name, or just a placeholder dot + name if no logo is set.
     $img = $logo
-        ? '<img src="' . e($logo) . '" alt="">'
-        : '<div style="width:36px;height:36px;border-radius:50%;background:' . e($primary) . ';"></div>';
-    return '<div class="logo-slot with-name">
+        ? '<img src="' . e($logo) . '" alt="" class="w-9 h-9 object-contain rounded-lg flex-shrink-0">'
+        : '<div class="w-9 h-9 rounded-full flex-shrink-0" style="background:' . e($primary) . '"></div>';
+    return '<div class="flex items-center gap-2.5 px-2 mb-5">
                 ' . $img . '
-                <div class="font-semibold text-sm">' . e($biz) . '</div>
+                <div class="font-semibold text-sm truncate">' . e($biz) . '</div>
             </div>';
 }
 
@@ -48,8 +50,8 @@ function admin_header(): void {
     global $page_title, $active;
 
     // Opportunistic auto-complete on every admin load.
-    if (function_exists('auto_complete_elapsed_bookings')) auto_complete_elapsed_bookings();
     if (function_exists('ensure_migrations')) ensure_migrations();
+    if (function_exists('auto_complete_elapsed_bookings')) auto_complete_elapsed_bookings();
 
     $user = current_user();
     $primary = primary_color();
@@ -58,7 +60,7 @@ function admin_header(): void {
     $current = $active ?? '';
     $navItems = admin_nav_items();
     ?><!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -68,43 +70,51 @@ function admin_header(): void {
   <script>
   tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
   </script>
-  <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
   <style>:root{--primary-color: <?= e($primary) ?>;}</style>
 </head>
-<body class="admin-layout bg-neutral-50 text-neutral-900">
-<div class="admin-shell">
-  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-  <aside class="admin-sidebar" id="adminSidebar">
-    <div class="admin-sidebar-inner">
+<body class="bg-neutral-50 text-neutral-900 h-full overflow-hidden">
+<div class="flex h-full overflow-hidden">
+  <!-- Mobile backdrop -->
+  <div id="sidebarBackdrop" class="fixed inset-0 bg-black/35 z-40 hidden md:hidden"></div>
+
+  <!-- Sidebar: off-canvas on mobile, static 240px on md+ -->
+  <aside id="adminSidebar"
+         class="fixed inset-y-0 left-0 w-60 bg-white border-r border-neutral-200 flex-shrink-0 flex flex-col
+                z-50 -translate-x-full transition-transform duration-200
+                md:static md:translate-x-0 md:h-screen md:z-0">
+    <div class="flex flex-col flex-1 min-h-0 p-4">
       <?= render_sidebar_logo() ?>
-      <nav class="nav-scroll space-y-1">
+      <nav class="flex-1 overflow-y-auto space-y-1 -mx-2 px-2">
         <?php foreach ($navItems as [$key, $url, $label]):
           $cls = $current === $key ? 'nav-link active' : 'nav-link';
         ?>
           <a href="<?= e($url) ?>" class="<?= e($cls) ?>"><?= e($label) ?></a>
         <?php endforeach; ?>
       </nav>
-      <div class="sidebar-footer">
-        <div id="liveClock" class="clock" data-tz="<?= e($tz) ?>">
-          <div class="time">—</div>
-          <div class="date"><?= e($tz) ?></div>
+      <div class="flex-shrink-0 pt-3 mt-3 border-t border-neutral-100 text-xs text-neutral-500">
+        <div id="liveClock" class="mb-2 text-center bg-neutral-50 border border-neutral-100 rounded-lg px-2.5 py-2 text-neutral-900"
+             data-tz="<?= e($tz) ?>" style="font-variant-numeric: tabular-nums;">
+          <div class="time font-semibold text-[15px]">—</div>
+          <div class="date text-[11px] text-neutral-500"><?= e($tz) ?></div>
         </div>
-        <div class="px-2"><?= e($user['name'] ?? '') ?></div>
-        <div class="px-2 text-[10px] uppercase tracking-wide"><?= e($user['role'] ?? '') ?></div>
+        <div class="px-2 font-medium text-neutral-700 truncate"><?= e($user['name'] ?? '') ?></div>
+        <div class="px-2 text-[10px] uppercase tracking-wide text-neutral-400"><?= e($user['role'] ?? '') ?></div>
         <a href="/admin/logout.php" class="nav-link mt-2 text-red-600 hover:bg-red-50">Log out</a>
       </div>
     </div>
   </aside>
 
-  <div class="admin-main">
-    <header class="admin-mobile-header">
+  <!-- Main area -->
+  <div class="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+    <header class="md:hidden flex items-center justify-between bg-white border-b border-neutral-200 px-4 py-3">
       <button id="sidebarToggle" class="p-2 rounded-lg border border-neutral-200" aria-label="Menu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
-      <div class="font-semibold text-sm"><?= e($biz) ?></div>
+      <div class="font-semibold text-sm truncate"><?= e($biz) ?></div>
       <div style="width:38px"></div>
     </header>
-    <div class="admin-scroll">
+    <div class="flex-1 overflow-y-auto p-4 md:p-8">
 <?php
 }
 
@@ -113,8 +123,8 @@ function admin_footer(): void { ?>
   </div>
 </div>
 <div id="toastRoot"></div>
-<script src="/assets/js/toast.js"></script>
-<script src="/assets/js/clock.js"></script>
+<script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
+<script src="<?= e(asset('/assets/js/clock.js')) ?>"></script>
 <script>
 // Mobile sidebar drawer
 (function(){
@@ -122,12 +132,11 @@ function admin_footer(): void { ?>
   const bar = document.getElementById('adminSidebar');
   const bd  = document.getElementById('sidebarBackdrop');
   if (!btn || !bar || !bd) return;
-  const open = () => { bar.classList.add('open'); bd.classList.add('show'); };
-  const close = () => { bar.classList.remove('open'); bd.classList.remove('show'); };
+  const open  = () => { bar.classList.remove('-translate-x-full'); bd.classList.remove('hidden'); };
+  const close = () => { bar.classList.add('-translate-x-full'); bd.classList.add('hidden'); };
   btn.addEventListener('click', open);
   bd.addEventListener('click', close);
 })();
-// Render any flash messages queued server-side as toasts.
 (function(){
   const flashes = window.__FLASHES__ || [];
   flashes.forEach(f => window.toast && window.toast(f.msg, { type: f.type }));
@@ -135,7 +144,6 @@ function admin_footer(): void { ?>
 </script>
 </body></html>
 <?php
-    // Clear flashes after emitting.
     $_SESSION['flash'] = [];
 }
 
@@ -150,8 +158,7 @@ function flash(string $key, string $msg = null): ?string {
 }
 
 /**
- * Emit queued flash messages as a JS payload the admin footer picks up
- * and renders through the toast system.
+ * Queue flash messages for the admin footer to render as toasts.
  */
 function flash_render(): string {
     if (empty($_SESSION['flash'])) return '';
@@ -160,7 +167,5 @@ function flash_render(): string {
         $type = ($k === 'error') ? 'error' : ($k === 'warn' ? 'warn' : 'success');
         $payload[] = ['type' => $type, 'msg' => (string)$m];
     }
-    // Don't clear here — admin_footer() clears after emitting. But also clear
-    // if flash_render is called on a non-admin page.
     return '<script>window.__FLASHES__ = ' . json_encode($payload) . ';</script>';
 }

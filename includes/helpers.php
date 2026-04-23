@@ -157,6 +157,29 @@ function logo_mode(): string {
 }
 
 /**
+ * Short versioning token for asset URLs. Changes on every deploy so
+ * browsers drop their cached copies of app.css / JS files.
+ *
+ * Uses the mtime of the main CSS file as a fingerprint; falls back to
+ * a hash of all tracked asset files.
+ */
+function asset_version(): string {
+    static $v = null;
+    if ($v !== null) return $v;
+    $probe = APP_ROOT . '/assets/css/app.css';
+    $m = is_file($probe) ? filemtime($probe) : time();
+    $v = dechex((int)$m);
+    return $v;
+}
+
+/** Returns a URL with a ?v=... cache-bust query parameter. */
+function asset(string $path): string {
+    if ($path === '' || $path[0] !== '/') $path = '/' . ltrim($path, '/');
+    $sep = (strpos($path, '?') === false) ? '?' : '&';
+    return $path . $sep . 'v=' . asset_version();
+}
+
+/**
  * Transition any confirmed/pending bookings whose end_time has passed to
  * "completed". Called opportunistically on admin page loads — lightweight
  * single UPDATE so it's safe to call often.

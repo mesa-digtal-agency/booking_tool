@@ -17,13 +17,14 @@ $biz = business_name();
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
     </script>
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900">
+<div id="toastRoot"></div>
 <header class="bg-white border-b border-neutral-200">
     <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-4">
         <div class="font-semibold"><?= e($biz) ?></div>
-        <a href="/" class="text-xs text-neutral-500 hover:text-neutral-800">New booking</a>
+        <a href="/book.php" class="text-xs text-neutral-500 hover:text-neutral-800">New booking</a>
     </div>
 </header>
 <main class="max-w-2xl mx-auto p-4">
@@ -53,6 +54,7 @@ $biz = business_name();
         <div id="feedback" class="mt-4 text-sm"></div>
     <?php endif; ?>
 </main>
-<script src="/assets/js/manage.js"></script>
+<script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
+<script src="<?= e(asset('/assets/js/manage.js')) ?>"></script>
 </body>
 </html>

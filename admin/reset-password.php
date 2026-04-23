@@ -49,7 +49,7 @@ $logo = logo_url();
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };</script>
-<link rel="stylesheet" href="/assets/css/app.css">
+<link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
 <style>:root{--primary-color: <?= e($primary) ?>;}</style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900 flex items-center justify-center p-4">
@@ -96,7 +96,7 @@ $logo = logo_url();
     </form>
   <?php endif; ?>
 </div>
-<script src="/assets/js/toast.js"></script>
+<script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
 <?php if ($errors): ?>
 <script><?php foreach ($errors as $er): ?>window.toast(<?= json_encode($er) ?>, { type: 'error' });<?php endforeach; ?></script>
 <?php endif; ?>
