@@ -33,10 +33,9 @@ function render_sidebar_logo(): string {
     $primary = primary_color();
 
     if ($mode === 'logo_only' && $logo) {
-        // Full sidebar width, no business-name text, auto height.
-        // -mx-4 cancels the .admin-sidebar-inner padding so the image can
-        // actually reach the sidebar edges.
-        return '<div class="-mx-4 mb-5 flex items-center justify-center">
+        // Full sidebar width within the sidebar's inner padding (p-4), so
+        // the image breathes on the sides. No business-name text.
+        return '<div class="mb-5 flex items-center justify-center">
                     <img src="' . e($logo) . '" alt="' . e($biz) . '" class="block w-full h-auto">
                 </div>';
     }

@@ -59,7 +59,7 @@ $busiest = db_all(
 $hour_map = array_fill(0, 24, 0);
 foreach ($busiest as $r) $hour_map[(int)$r['hr']] = (int)$r['cnt'];
 
-// Upcoming bookings list (next 5).
+// Limit upcoming to 4 — keeps the dashboard compact.
 $upcoming = db_all(
     "SELECT b.id, b.booking_date, b.start_time, b.status, b.customer_name,
             s.name AS service_name, st.name AS staff_name
@@ -67,7 +67,7 @@ $upcoming = db_all(
      JOIN services s ON s.id = b.service_id
      JOIN staff st  ON st.id = b.staff_id
      WHERE b.booking_date >= ? AND b.status IN ('pending','confirmed') {$scope_where}
-     ORDER BY b.booking_date, b.start_time LIMIT 5",
+     ORDER BY b.booking_date, b.start_time LIMIT 4",
     [$today]
 );
 
@@ -99,86 +99,100 @@ if (is_admin()) {
 admin_header();
 ?>
 <?= flash_render() ?>
-<h1 class="text-2xl font-semibold mb-6">Dashboard</h1>
+<h1 class="text-xl font-semibold mb-4">Dashboard</h1>
 
-<div class="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+<!-- Row 1: stat cards (compact) -->
+<div class="grid grid-cols-3 gap-3 mb-3">
   <?php foreach (['today'=>'Today','week'=>'This week','month'=>'This month'] as $k=>$lbl): ?>
-    <div class="bg-white border border-neutral-200 rounded-xl p-4">
-      <div class="text-xs text-neutral-500 uppercase tracking-wide"><?= e($lbl) ?></div>
-      <div class="flex items-baseline gap-2 mt-1">
-        <div class="text-2xl font-semibold"><?= $stats[$k]['count'] ?></div>
-        <div class="text-xs text-neutral-500">bookings</div>
+    <div class="bg-white border border-neutral-200 rounded-xl p-3">
+      <div class="text-[10px] text-neutral-500 uppercase tracking-wide"><?= e($lbl) ?></div>
+      <div class="flex items-baseline gap-2 mt-0.5">
+        <div class="text-xl font-semibold"><?= $stats[$k]['count'] ?></div>
+        <div class="text-[11px] text-neutral-500">bookings</div>
       </div>
-      <div class="text-sm text-neutral-700 mt-1">$<?= format_money($stats[$k]['revenue']) ?> <span class="text-xs text-neutral-500">revenue</span></div>
+      <div class="text-xs text-neutral-600 mt-0.5">$<?= format_money($stats[$k]['revenue']) ?> <span class="text-neutral-400">revenue</span></div>
     </div>
   <?php endforeach; ?>
 </div>
 
-<div class="grid lg:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white border border-neutral-200 rounded-xl p-4 lg:col-span-2">
-    <div class="font-semibold mb-3">Busiest hours (this month)</div>
-    <canvas id="hoursChart" height="120"></canvas>
+<!-- Row 2: charts -->
+<div class="grid lg:grid-cols-3 gap-3 mb-3">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 lg:col-span-2">
+    <div class="text-xs font-semibold mb-2 text-neutral-700">Busiest hours (this month)</div>
+    <div style="height: 160px;"><canvas id="hoursChart"></canvas></div>
   </div>
-  <div class="bg-white border border-neutral-200 rounded-xl p-4">
-    <div class="font-semibold mb-3">Status breakdown</div>
-    <canvas id="statusChart" height="160"></canvas>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 flex flex-col">
+    <div class="text-xs font-semibold mb-2 text-neutral-700">Status breakdown</div>
+    <div style="height: 160px; position: relative;" class="flex-1"><canvas id="statusChart"></canvas></div>
   </div>
 </div>
 
-<div class="grid lg:grid-cols-2 gap-4 mb-6">
-  <div class="bg-white border border-neutral-200 rounded-xl p-4">
-    <div class="font-semibold mb-3">Upcoming bookings</div>
+<!-- Row 3: upcoming + top services + staff performance -->
+<div class="grid lg:grid-cols-3 gap-3">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-xs font-semibold mb-2 text-neutral-700">Upcoming bookings</div>
     <?php if (!$upcoming): ?>
-      <div class="text-sm text-neutral-500">Nothing coming up.</div>
+      <div class="text-xs text-neutral-500">Nothing coming up.</div>
     <?php else: ?>
       <ul class="divide-y divide-neutral-100">
         <?php foreach ($upcoming as $u): ?>
-          <li class="py-2 flex items-center justify-between gap-2">
-            <div>
-              <div class="font-medium text-sm"><?= e($u['service_name']) ?> <span class="text-neutral-400">·</span> <?= e($u['customer_name']) ?></div>
-              <div class="text-xs text-neutral-500"><?= e($u['booking_date']) ?> at <?= e(format_time_display($u['start_time'])) ?> · <?= e($u['staff_name']) ?></div>
+          <li class="py-1.5 flex items-center justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-medium truncate"><?= e($u['customer_name']) ?> <span class="text-neutral-400">·</span> <?= e($u['service_name']) ?></div>
+              <div class="text-[11px] text-neutral-500 truncate"><?= e($u['booking_date']) ?> · <?= e(format_time_display($u['start_time'])) ?> · <?= e($u['staff_name']) ?></div>
             </div>
-            <a class="text-xs text-primary hover:underline" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
+            <a class="text-[11px] text-primary hover:underline flex-shrink-0" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
           </li>
         <?php endforeach; ?>
       </ul>
     <?php endif; ?>
   </div>
 
-  <div class="bg-white border border-neutral-200 rounded-xl p-4">
-    <div class="font-semibold mb-3">Top services (this month)</div>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-xs font-semibold mb-2 text-neutral-700">Top services (this month)</div>
     <?php if (!$top_services): ?>
-      <div class="text-sm text-neutral-500">No bookings yet.</div>
+      <div class="text-xs text-neutral-500">No bookings yet.</div>
     <?php else: ?>
-      <ol class="space-y-2">
+      <ol class="space-y-1.5">
         <?php foreach ($top_services as $i => $s): ?>
-          <li class="flex items-center justify-between">
-            <span class="text-sm"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
-            <span class="text-xs text-neutral-500"><?= (int)$s['cnt'] ?> bookings</span>
+          <li class="flex items-center justify-between gap-2">
+            <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
+            <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> bookings</span>
           </li>
         <?php endforeach; ?>
       </ol>
     <?php endif; ?>
   </div>
-</div>
 
-<?php if (is_admin() && $staff_perf): ?>
-<div class="bg-white border border-neutral-200 rounded-xl p-4 mb-6">
-  <div class="font-semibold mb-3">Staff performance (this month)</div>
-  <table class="w-full text-sm">
-    <thead><tr class="text-neutral-500 text-left"><th class="py-1 font-normal">Staff</th><th class="font-normal">Bookings</th><th class="font-normal">Revenue</th></tr></thead>
-    <tbody>
-    <?php foreach ($staff_perf as $p): ?>
-      <tr class="border-t border-neutral-100">
-        <td class="py-2"><?= e($p['name']) ?></td>
-        <td><?= (int)$p['cnt'] ?></td>
-        <td>$<?= format_money((float)$p['revenue']) ?></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
+  <?php if (is_admin()): ?>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-xs font-semibold mb-2 text-neutral-700">Staff performance</div>
+    <?php if (!$staff_perf): ?>
+      <div class="text-xs text-neutral-500">No active staff yet.</div>
+    <?php else: ?>
+      <div class="overflow-y-auto" style="max-height: 160px;">
+        <table class="w-full text-xs">
+          <thead class="text-neutral-500 text-left sticky top-0 bg-white">
+            <tr><th class="py-1 font-normal">Staff</th><th class="font-normal">Bkg</th><th class="font-normal text-right">Rev.</th></tr>
+          </thead>
+          <tbody>
+          <?php foreach ($staff_perf as $p): ?>
+            <tr class="border-t border-neutral-100">
+              <td class="py-1.5 truncate max-w-[110px]"><?= e($p['name']) ?></td>
+              <td class="py-1.5"><?= (int)$p['cnt'] ?></td>
+              <td class="py-1.5 text-right">$<?= format_money((float)$p['revenue']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php endif; ?>
+  </div>
+  <?php else: ?>
+  <!-- Placeholder keeps the 3-col grid balanced for staff role. -->
+  <div></div>
+  <?php endif; ?>
 </div>
-<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -188,8 +202,15 @@ const primary = '<?= e($primary = primary_color()) ?>';
 
 new Chart(document.getElementById('hoursChart'), {
   type: 'bar',
-  data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: primary, borderRadius: 6 }] },
-  options: { plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: primary, borderRadius: 4 }] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+      y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }
+    }
+  }
 });
 
 new Chart(document.getElementById('statusChart'), {
@@ -202,7 +223,11 @@ new Chart(document.getElementById('statusChart'), {
       borderWidth: 0
     }]
   },
-  options: { cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+  }
 });
 </script>
 <?php admin_footer(); ?>
