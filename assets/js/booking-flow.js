@@ -122,13 +122,17 @@
         groups[cat].forEach(s => {
           const card = document.createElement('button');
           card.type = 'button';
-          card.className = 'w-full text-left bg-white border border-neutral-200 rounded-xl p-4 flex items-center justify-between hover:border-primary transition';
+          card.className = 'w-full text-left bg-white border border-neutral-200 rounded-xl p-4 flex items-center gap-4 hover:border-primary hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition duration-150';
+          const thumb = s.image
+            ? `<img src="${escapeHtml(s.image)}" alt="" class="w-20 h-20 rounded-lg object-cover flex-shrink-0" style="max-width:160px;max-height:160px;">`
+            : '';
           card.innerHTML = `
-            <div>
-              <div class="font-medium">${escapeHtml(s.name)}</div>
+            ${thumb}
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate">${escapeHtml(s.name)}</div>
               <div class="text-xs text-neutral-500">${fmtMinutes(s.duration_minutes)}${s.description ? ' · ' + escapeHtml(s.description) : ''}</div>
             </div>
-            <div class="text-sm font-semibold">${fmtMoney(s.price)}</div>`;
+            <div class="text-sm font-semibold flex-shrink-0">${fmtMoney(s.price)}</div>`;
           card.addEventListener('click', () => {
             state.service = s;
             state.staff = null; state.date = null; state.time = null;
@@ -165,7 +169,7 @@
   function pickStaffCard(s) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'bg-white border border-neutral-200 rounded-xl p-4 text-center hover:border-primary transition';
+    btn.className = 'bg-white border border-neutral-200 rounded-xl p-4 text-center hover:border-primary hover:shadow-sm hover:-translate-y-0.5 transition duration-150';
     const av = s.avatar
       ? `<img src="/assets/avatars/${escapeHtml(s.avatar)}" class="w-16 h-16 rounded-full mx-auto object-cover">`
       : `<div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-neutral-100 text-neutral-500 text-xl font-semibold">${initials(s.name)}</div>`;
@@ -217,7 +221,7 @@
       slots.forEach(t => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'py-2 rounded-lg border border-neutral-200 text-sm hover:border-primary hover:text-primary transition';
+        b.className = 'py-2 rounded-lg border border-neutral-200 text-sm hover:border-primary hover:text-primary hover:-translate-y-0.5 transition duration-150';
         b.textContent = fmtTime(t);
         b.addEventListener('click', () => {
           state.time = t;
@@ -256,7 +260,13 @@
 
   function renderReview() {
     const r = document.getElementById('reviewBox');
-    r.innerHTML = `
+    const imgRow = state.service.image
+      ? `<div class="flex items-center gap-3 pb-2 mb-1 border-b border-neutral-100">
+           <img src="${escapeHtml(state.service.image)}" alt="" class="w-14 h-14 rounded-lg object-cover">
+           <div class="font-medium">${escapeHtml(state.service.name)}</div>
+         </div>`
+      : '';
+    r.innerHTML = imgRow + `
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Service</div><div class="font-medium">${escapeHtml(state.service.name)}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Professional</div><div class="font-medium">${state.staff ? escapeHtml(state.staff.name) : 'Any available'}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Date</div><div class="font-medium">${fmtDateHuman(state.date)}</div></div>

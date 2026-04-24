@@ -46,9 +46,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
     if (!in_array($data['status'], ['pending','confirmed','cancelled','completed'], true)) $data['status'] = 'confirmed';
 
-    // Validation
+    // Validation — email is optional here in the admin form (staff often
+    // book walk-ins by phone). The public /api/bookings.php endpoint still
+    // requires email.
     if ($data['customer_name'] === '') $errors[] = 'Customer name is required.';
-    if (!is_valid_email($data['customer_email'])) $errors[] = 'Valid email is required.';
+    if ($data['customer_email'] !== '' && !is_valid_email($data['customer_email'])) $errors[] = 'Email is not valid.';
     if (!is_valid_phone($data['customer_phone'])) $errors[] = 'Valid phone is required.';
     if ($data['service_id'] <= 0) $errors[] = 'Service is required.';
     if ($data['staff_id'] <= 0)   $errors[] = 'Staff is required.';
@@ -144,8 +146,8 @@ window.addEventListener('DOMContentLoaded', function () {
     <label class="block text-sm">Customer name
       <input name="customer_name" required value="<?= e($booking['customer_name'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
     </label>
-    <label class="block text-sm">Email
-      <input name="customer_email" type="email" required value="<?= e($booking['customer_email'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+    <label class="block text-sm">Email <span class="text-neutral-400">(optional)</span>
+      <input name="customer_email" type="email" value="<?= e($booking['customer_email'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
     </label>
     <label class="block text-sm">Phone
       <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="+1"

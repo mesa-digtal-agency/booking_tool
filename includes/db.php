@@ -31,8 +31,11 @@ function db(): PDO {
                 'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
                 $cfg['db_host'], (int)$cfg['db_port'], $cfg['db_name']
             );
+            // Force UTC so CURRENT_TIMESTAMP matches gmdate() in PHP — keeps
+            // the rate limiter and any other "N seconds ago" comparisons sane.
             $pdo = new PDO($dsn, $cfg['db_user'], $cfg['db_password'], [
-                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+                PDO::MYSQL_ATTR_INIT_COMMAND =>
+                    "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, time_zone = '+00:00'",
             ]);
         } else {
             throw new RuntimeException("Unsupported db_type: {$type}");
@@ -88,4 +91,49 @@ function db_scalar(string $sql, array $params = []) {
     $st->execute($params);
     $row = $st->fetch(PDO::FETCH_NUM);
     return $row === false ? null : $row[0];
+}
+
+/**
+ * Begin a transaction that serializes writers.
+ *
+ * - SQLite: BEGIN IMMEDIATE acquires the write lock up-front, so two
+ *   concurrent booking inserts cannot both pass the conflict check.
+ * - MySQL: a regular transaction + SELECT ... FOR UPDATE downstream
+ *   handles it; we just begin normally here.
+ */
+function db_begin_exclusive(): void {
+    if (db_driver() === 'sqlite') {
+        db()->exec('BEGIN IMMEDIATE');
+    } else {
+        db()->beginTransaction();
+    }
+}
+
+/** Commit whichever transaction type is open. */
+function db_commit(): void {
+    if (db_driver() === 'sqlite') {
+        db()->exec('COMMIT');
+    } else {
+        if (db()->inTransaction()) db()->commit();
+    }
+}
+
+/** Roll back whichever transaction type is open. */
+function db_rollback(): void {
+    try {
+        if (db_driver() === 'sqlite') {
+            db()->exec('ROLLBACK');
+        } else {
+            if (db()->inTransaction()) db()->rollBack();
+        }
+    } catch (Throwable $e) { /* best effort */ }
+}
+
+/**
+ * Lock-read clause for conflict detection. Appended to a SELECT on
+ * MySQL as `FOR UPDATE` so the row-range is held until the transaction
+ * commits. No-op on SQLite (BEGIN IMMEDIATE already serialized us).
+ */
+function db_for_update_clause(): string {
+    return db_driver() === 'mysql' ? ' FOR UPDATE' : '';
 }

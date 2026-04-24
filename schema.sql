@@ -9,6 +9,7 @@ CREATE TABLE services (
     duration_minutes INTEGER NOT NULL,
     price DECIMAL(10,2) NOT NULL DEFAULT 0,
     category VARCHAR(80),
+    image VARCHAR(255),
     is_active INTEGER NOT NULL DEFAULT 1
 );
 

@@ -33,8 +33,11 @@ function render_sidebar_logo(): string {
     $primary = primary_color();
 
     if ($mode === 'logo_only' && $logo) {
-        return '<div class="px-1 py-2 mb-3 flex items-center justify-center">
-                    <img src="' . e($logo) . '" alt="' . e($biz) . '" class="block max-w-full h-auto max-h-24">
+        // Full sidebar width, no business-name text, auto height.
+        // -mx-4 cancels the .admin-sidebar-inner padding so the image can
+        // actually reach the sidebar edges.
+        return '<div class="-mx-4 mb-5 flex items-center justify-center">
+                    <img src="' . e($logo) . '" alt="' . e($biz) . '" class="block w-full h-auto">
                 </div>';
     }
     $img = $logo

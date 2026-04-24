@@ -85,9 +85,11 @@
     const sel  = wrap.querySelector('[data-cc]');
     const num  = wrap.querySelector('[data-num]');
     const out  = wrap.querySelector('[data-combined]');
+    // Append the error message to the CONTAINER, not the flex wrap, so it
+    // sits on its own line directly below the select+input row.
     const err  = document.createElement('div');
     err.className = 'text-xs text-red-600 mt-1 hidden';
-    wrap.appendChild(err);
+    container.appendChild(err);
 
     function recompute() {
       const digits = (num.value || '').replace(/\D/g, '');

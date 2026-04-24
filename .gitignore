@@ -4,5 +4,7 @@ data/*.sqlite-journal
 data/*.db
 assets/avatars/*
 !assets/avatars/.gitkeep
+assets/services/*
+!assets/services/.gitkeep
 .DS_Store
 *.log

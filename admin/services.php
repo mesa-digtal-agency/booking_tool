@@ -19,11 +19,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $did = (int)($_POST['id'] ?? 0);
         if ($did > 0) {
+            $row = db_fetch("SELECT image FROM services WHERE id = ?", [$did]);
             db_exec("DELETE FROM staff_services WHERE service_id = ?", [$did]);
             db_exec("DELETE FROM services WHERE id = ?", [$did]);
+            // Clean up image file if any.
+            if ($row && !empty($row['image'])) {
+                $p = APP_ROOT . '/assets/services/' . basename($row['image']);
+                if (is_file($p)) @unlink($p);
+            }
             flash('ok', 'Service deleted.');
         }
         redirect('/admin/services.php');
+    }
+
+    if ($action === 'remove_image' && $editing) {
+        if (!empty($editing['image'])) {
+            $p = APP_ROOT . '/assets/services/' . basename($editing['image']);
+            if (is_file($p)) @unlink($p);
+        }
+        db_exec("UPDATE services SET image = NULL WHERE id = ?", [(int)$editing['id']]);
+        flash('ok', 'Service image removed.');
+        redirect('/admin/services.php?edit=' . (int)$editing['id']);
     }
 
     $data = [
@@ -39,15 +55,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $assigned = isset($_POST['staff_ids']) && is_array($_POST['staff_ids']) ? array_map('intval', $_POST['staff_ids']) : [];
 
+    // Image upload (optional) — validate MIME + size, rename, replace old file.
+    $image_filename = $editing['image'] ?? null;
+    if (!$errors && !empty($_FILES['image']['name'])) {
+        $file = $_FILES['image'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Image upload failed.';
+        } elseif ($file['size'] > 2 * 1024 * 1024) {
+            $errors[] = 'Image must be under 2 MB.';
+        } else {
+            $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
+            $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : mime_content_type($file['tmp_name']);
+            if ($finfo) finfo_close($finfo);
+            $ext_map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+            if (!isset($ext_map[$mime])) {
+                $errors[] = 'Image must be JPG, PNG, or WEBP.';
+            } else {
+                $ext = $ext_map[$mime];
+                $new = 'service_' . ($editing['id'] ?? 'new') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                $dest_dir = APP_ROOT . '/assets/services';
+                if (!is_dir($dest_dir)) @mkdir($dest_dir, 0775, true);
+                $dest = $dest_dir . '/' . $new;
+                if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                    $errors[] = 'Could not save image.';
+                } else {
+                    if (!empty($editing['image'])) {
+                        $old = APP_ROOT . '/assets/services/' . basename($editing['image']);
+                        if (is_file($old)) @unlink($old);
+                    }
+                    $image_filename = $new;
+                }
+            }
+        }
+    }
+
     if (!$errors) {
         if ($editing) {
-            db_exec("UPDATE services SET name=?, description=?, category=?, duration_minutes=?, price=?, is_active=? WHERE id=?",
-                [$data['name'],$data['description'],$data['category'],$data['duration_minutes'],$data['price'],$data['is_active'],(int)$editing['id']]);
+            db_exec(
+                "UPDATE services SET name=?, description=?, category=?, duration_minutes=?, price=?, is_active=?, image=? WHERE id=?",
+                [$data['name'],$data['description'],$data['category'],$data['duration_minutes'],$data['price'],$data['is_active'],$image_filename,(int)$editing['id']]
+            );
             $sid = (int)$editing['id'];
         } else {
             $sid = (int)db_insert(
-                "INSERT INTO services (name, description, category, duration_minutes, price, is_active) VALUES (?,?,?,?,?,?)",
-                [$data['name'],$data['description'],$data['category'],$data['duration_minutes'],$data['price'],$data['is_active']]
+                "INSERT INTO services (name, description, category, duration_minutes, price, is_active, image) VALUES (?,?,?,?,?,?,?)",
+                [$data['name'],$data['description'],$data['category'],$data['duration_minutes'],$data['price'],$data['is_active'],$image_filename]
             );
         }
         // Resync staff_services for this service.
@@ -61,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('/admin/services.php');
     }
     // rehydrate
-    $editing = array_merge($editing ?? [], $data);
+    $editing = array_merge($editing ?? [], $data, ['image' => $image_filename]);
 }
 
 $all = db_all("SELECT * FROM services ORDER BY is_active DESC, category, name");
@@ -87,7 +139,7 @@ admin_header();
   <?php if ($errors): ?>
     <script>window.addEventListener('DOMContentLoaded', function(){ <?php foreach ($errors as $er) echo 'window.toast && window.toast(' . json_encode($er) . ', { type: "error", timeout: 7000 });'; ?> });</script>
   <?php endif; ?>
-  <form method="post" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3 mb-6 max-w-3xl">
+  <form method="post" enctype="multipart/form-data" class="bg-white border border-neutral-200 rounded-xl p-5 space-y-3 mb-6 max-w-3xl">
     <?= csrf_field() ?>
     <?php if ($editing && !empty($editing['id'])): ?><input type="hidden" name="id" value="<?= (int)$editing['id'] ?>"><?php endif; ?>
     <div class="grid md:grid-cols-2 gap-3">
@@ -99,6 +151,22 @@ admin_header();
     <label class="text-sm block">Description
       <textarea name="description" rows="2" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"><?= e($editing['description'] ?? '') ?></textarea>
     </label>
+    <div class="text-sm">
+      <div class="text-neutral-500 mb-1">Image <span class="text-neutral-400">(optional, shown on the booking page, max 160×160)</span></div>
+      <div class="flex items-start gap-3">
+        <?php if (!empty($editing['image'])): ?>
+          <img src="/assets/services/<?= e($editing['image']) ?>" alt="" class="w-20 h-20 rounded-lg object-cover border border-neutral-200">
+        <?php else: ?>
+          <div class="w-20 h-20 rounded-lg bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-400 text-xs">No image</div>
+        <?php endif; ?>
+        <div class="flex-1">
+          <input type="file" name="image" accept="image/png,image/jpeg,image/webp" class="w-full text-sm">
+          <?php if (!empty($editing['image']) && !empty($editing['id'])): ?>
+            <button type="submit" name="action" value="remove_image" class="mt-2 text-xs text-red-600 hover:underline">Remove image</button>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
     <label class="text-sm inline-flex items-center gap-2"><input type="checkbox" name="is_active" <?= (int)($editing['is_active'] ?? 1)===1?'checked':'' ?>> Active</label>
     <div class="text-sm">
       <div class="text-neutral-500 mb-1">Assigned staff</div>
@@ -123,6 +191,7 @@ admin_header();
   <table class="w-full text-sm">
     <thead class="bg-neutral-50 text-left text-neutral-500 text-xs uppercase">
       <tr>
+        <th class="px-3 py-2"></th>
         <th class="px-3 py-2">Name</th>
         <th class="px-3 py-2">Category</th>
         <th class="px-3 py-2">Duration</th>
@@ -132,9 +201,16 @@ admin_header();
       </tr>
     </thead>
     <tbody>
-    <?php if (!$all): ?><tr><td colspan="6" class="px-3 py-8 text-center text-neutral-500">No services yet.</td></tr><?php endif; ?>
+    <?php if (!$all): ?><tr><td colspan="7" class="px-3 py-8 text-center text-neutral-500">No services yet.</td></tr><?php endif; ?>
     <?php foreach ($all as $s): ?>
       <tr class="border-t border-neutral-100">
+        <td class="px-3 py-2">
+          <?php if (!empty($s['image'])): ?>
+            <img src="/assets/services/<?= e($s['image']) ?>" alt="" class="w-10 h-10 rounded-lg object-cover">
+          <?php else: ?>
+            <div class="w-10 h-10 rounded-lg bg-neutral-100"></div>
+          <?php endif; ?>
+        </td>
         <td class="px-3 py-2 font-medium"><?= e($s['name']) ?></td>
         <td class="px-3 py-2"><?= e($s['category']) ?></td>
         <td class="px-3 py-2"><?= (int)$s['duration_minutes'] ?> min</td>

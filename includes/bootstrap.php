@@ -104,7 +104,9 @@ function ensure_migrations(): void {
     if ($ran) return;
     try {
         $pdo = db();
-        $auto_pk = db_driver() === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
+        $driver = db_driver();
+        $auto_pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY AUTOINCREMENT' : 'INT AUTO_INCREMENT PRIMARY KEY';
+
         $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
             id {$auto_pk},
             staff_id INTEGER NOT NULL,
@@ -114,9 +116,35 @@ function ensure_migrations(): void {
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
         )");
+
+        // services.image — added in v1.x; upgrade older installs.
+        if (!column_exists('services', 'image')) {
+            $pdo->exec("ALTER TABLE services ADD COLUMN image VARCHAR(255)");
+        }
+
         $ran = true;
     } catch (Throwable $e) {
-        // Swallow — migrations should never break page loads.
         error_log('ensure_migrations: ' . $e->getMessage());
+    }
+}
+
+/** True if $table has $column, driver-agnostic. */
+function column_exists(string $table, string $column): bool {
+    try {
+        if (db_driver() === 'sqlite') {
+            $rows = db_all("PRAGMA table_info(" . $table . ")");
+            foreach ($rows as $r) {
+                if (strcasecmp($r['name'], $column) === 0) return true;
+            }
+            return false;
+        }
+        $row = db_fetch(
+            "SELECT 1 FROM information_schema.columns
+             WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
+            [$table, $column]
+        );
+        return (bool)$row;
+    } catch (Throwable $e) {
+        return false;
     }
 }

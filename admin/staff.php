@@ -18,10 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete') {
         $did = (int)($_POST['id'] ?? 0);
         if ($did > 0 && $did !== (int)current_user()['id']) {
-            // soft-guard: don't delete the only admin
-            if ((int)db_scalar("SELECT COUNT(*) FROM staff WHERE role='admin' AND is_active=1") <= 1
-                && db_scalar("SELECT role FROM staff WHERE id=?", [$did]) === 'admin') {
-                flash('error', 'Cannot delete the only active admin.');
+            if (is_last_active_admin($did)) {
+                flash('error', 'Cannot delete the only active admin — the business would be locked out.');
             } else {
                 db_exec("DELETE FROM staff WHERE id = ?", [$did]);
                 flash('ok', 'Staff member deleted.');
@@ -40,6 +38,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     if ($data['name'] === '') $errors[] = 'Name is required.';
     if (!is_valid_email($data['email'])) $errors[] = 'Email is invalid.';
+
+    // Last-admin guard: block edits that demote or deactivate the sole
+    // active admin, regardless of who is performing the edit.
+    if (!$errors && $editing) {
+        $changing_role   = ($data['role'] !== $editing['role']);
+        $changing_active = ((int)$data['is_active'] !== (int)$editing['is_active']);
+        if (($changing_role || $changing_active) && is_last_active_admin((int)$editing['id'])) {
+            if ($data['role'] !== 'admin') {
+                $errors[] = 'Cannot demote the only active admin — promote someone else first.';
+            }
+            if ((int)$data['is_active'] === 0) {
+                $errors[] = 'Cannot deactivate the only active admin — the business would be locked out.';
+            }
+        }
+    }
 
     // Uniqueness
     if (!$errors) {

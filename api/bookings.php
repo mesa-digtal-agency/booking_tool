@@ -39,7 +39,11 @@ if (!$dt_start || $dt_start->getTimestamp() <= time()) {
 }
 
 // Basic rate-limit: max 5 bookings/hour per email.
-$cutoff = date('Y-m-d H:i:s', time() - 3600);
+// IMPORTANT: bookings.created_at is stored in UTC by both drivers
+// (SQLite's CURRENT_TIMESTAMP is UTC by definition, and the MySQL
+// connection is pinned to '+00:00' in db.php). Use gmdate() so the
+// cutoff is also UTC, regardless of the business_timezone.
+$cutoff = gmdate('Y-m-d H:i:s', time() - 3600);
 $recent = (int)db_scalar(
     "SELECT COUNT(*) FROM bookings WHERE customer_email = ? AND created_at >= ?",
     [$email, $cutoff]
@@ -64,16 +68,34 @@ $end_time = compute_end_time($time, $duration);
 $token = uuid_v4();
 
 try {
-    db()->beginTransaction();
+    // db_begin_exclusive() runs BEGIN IMMEDIATE on SQLite (acquires the
+    // DB-level write lock up-front) and a plain transaction on MySQL; the
+    // downstream SELECTs use FOR UPDATE on MySQL to hold the row-range
+    // until we commit. Together these close the double-book race window.
+    db_begin_exclusive();
+    $lock = db_for_update_clause();
 
-    // Re-check inside the transaction to close the race window — both
-    // existing bookings AND blocked slots must be conflict-free.
-    if (has_booking_conflict($staff_id, $date, $time, $end_time)) {
-        db()->rollBack();
+    $conflict = db_scalar(
+        "SELECT 1 FROM bookings
+         WHERE staff_id = ? AND booking_date = ? AND status IN ('pending','confirmed')
+         AND NOT (end_time <= ? OR start_time >= ?)
+         LIMIT 1" . $lock,
+        [$staff_id, $date, $time, $end_time]
+    );
+    if ($conflict) {
+        db_rollback();
         json_error('That time is no longer available.', 409);
     }
-    if (has_blocked_overlap($staff_id, $date, $time, $end_time)) {
-        db()->rollBack();
+
+    $blocked = db_scalar(
+        "SELECT 1 FROM blocked_slots
+         WHERE staff_id = ? AND date = ?
+         AND NOT (end_time <= ? OR start_time >= ?)
+         LIMIT 1" . $lock,
+        [$staff_id, $date, $time, $end_time]
+    );
+    if ($blocked) {
+        db_rollback();
         json_error('That time is blocked off and cannot be booked.', 409);
     }
 
@@ -85,9 +107,9 @@ try {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)",
         [$name, $email, $phone, $notes, $service_id, $staff_id, $date, $time, $end_time, $token]
     );
-    db()->commit();
+    db_commit();
 } catch (Throwable $e) {
-    if (db()->inTransaction()) db()->rollBack();
+    db_rollback();
     error_log('Booking insert failed: ' . $e->getMessage());
     json_error('Could not save booking. Please try again.', 500);
 }

@@ -120,7 +120,7 @@ $logo    = logo_url();
     <!-- Step 6: Success -->
     <section data-panel="success" class="panel hidden">
         <div class="bg-white border border-neutral-200 rounded-xl p-6 text-center">
-            <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style="background: <?= e($primary) ?>20; color: <?= e($primary) ?>">
+            <div class="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3 success-pop" style="background: <?= e($primary) ?>20; color: <?= e($primary) ?>">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
             <h2 class="text-xl font-semibold">You're booked!</h2>

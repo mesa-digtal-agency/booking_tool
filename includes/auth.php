@@ -76,3 +76,18 @@ function scope_staff_id(): ?int {
     if (is_admin()) return null; // null = no restriction
     return (int)$_SESSION['user']['id'];
 }
+
+/**
+ * True if removing / demoting / deactivating staff #$staff_id would
+ * leave zero active admins. Used to block self-lockout.
+ */
+function is_last_active_admin(int $staff_id): bool {
+    $row = db_fetch("SELECT role, is_active FROM staff WHERE id = ?", [$staff_id]);
+    if (!$row) return false;
+    if ($row['role'] !== 'admin' || (int)$row['is_active'] !== 1) return false;
+    $others = (int)db_scalar(
+        "SELECT COUNT(*) FROM staff WHERE role = 'admin' AND is_active = 1 AND id <> ?",
+        [$staff_id]
+    );
+    return $others === 0;
+}
