@@ -49,14 +49,20 @@ function busy_intervals(int $staff_id, string $date): array {
         [$staff_id, $date]
     );
     foreach ($rows as $r) {
-        $out[] = [time_to_minutes($r['start_time']), time_to_minutes($r['end_time'])];
+        $s = time_to_minutes($r['start_time']);
+        $e = time_to_minutes($r['end_time']);
+        if ($e > $s) $out[] = [$s, $e]; // skip degenerate ranges
     }
     $blocked = db_all(
         "SELECT start_time, end_time FROM blocked_slots WHERE staff_id = ? AND date = ?",
         [$staff_id, $date]
     );
     foreach ($blocked as $r) {
-        $out[] = [time_to_minutes($r['start_time']), time_to_minutes($r['end_time'])];
+        $s = time_to_minutes($r['start_time']);
+        $e = time_to_minutes($r['end_time']);
+        // Defensive sanity: ignore rows where the end isn't strictly after the
+        // start (would otherwise either be a no-op or behave unpredictably).
+        if ($e > $s) $out[] = [$s, $e];
     }
     return $out;
 }

@@ -40,7 +40,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($staff_id <= 0) $errors[] = 'Staff is required.';
     if (!is_valid_date($date)) $errors[] = 'Date is required.';
     if (!is_valid_time($start) || !is_valid_time($end)) $errors[] = 'Start and end times are required.';
-    if (!$errors && time_to_minutes($end) <= time_to_minutes($start)) $errors[] = 'End time must be after start time.';
+    if (!$errors) {
+        $sm = time_to_minutes($start);
+        $em = time_to_minutes($end);
+        if ($em <= $sm) $errors[] = 'End time must be after start time.';
+        if (!$errors && ($em - $sm) >= 24 * 60) $errors[] = 'A single block cannot span 24 hours or more.';
+    }
     if ($repeat) {
         if (!is_valid_date($until)) $errors[] = 'Repeat-until date is required when "repeat on working days" is checked.';
         if (!$errors && $until < $date) $errors[] = 'Repeat-until date must be on or after the start date.';

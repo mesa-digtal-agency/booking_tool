@@ -104,7 +104,7 @@ try {
          (customer_name, customer_email, customer_phone, notes,
           service_id, staff_id, booking_date, start_time, end_time,
           status, management_token)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
         [$name, $email, $phone, $notes, $service_id, $staff_id, $date, $time, $end_time, $token]
     );
     db_commit();

@@ -61,8 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $file = $_FILES['image'];
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $errors[] = 'Image upload failed.';
-        } elseif ($file['size'] > 2 * 1024 * 1024) {
-            $errors[] = 'Image must be under 2 MB.';
+        } elseif ($file['size'] > 5 * 1024 * 1024) {
+            $errors[] = 'Image must be under 5 MB.';
         } else {
             $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
             $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : mime_content_type($file['tmp_name']);

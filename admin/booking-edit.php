@@ -42,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'staff_id'       => (int)($_POST['staff_id'] ?? 0),
         'booking_date'   => str_in($_POST, 'booking_date', 10),
         'start_time'     => normalize_time(str_in($_POST, 'start_time', 8)) ?? '',
-        'status'         => (string)($_POST['status'] ?? 'confirmed'),
+        'status'         => (string)($_POST['status'] ?? 'pending'),
     ];
-    if (!in_array($data['status'], ['pending','confirmed','cancelled','completed'], true)) $data['status'] = 'confirmed';
+    if (!in_array($data['status'], ['pending','confirmed','cancelled','completed'], true)) $data['status'] = 'pending';
 
     // Validation — email is optional here in the admin form (staff often
     // book walk-ins by phone). The public /api/bookings.php endpoint still
@@ -156,7 +156,7 @@ window.addEventListener('DOMContentLoaded', function () {
     <label class="block text-sm">Status
       <select name="status" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
         <?php foreach (['pending','confirmed','cancelled','completed'] as $s): ?>
-          <option <?= ($booking['status'] ?? 'confirmed')===$s?'selected':'' ?>><?= $s ?></option>
+          <option <?= ($booking['status'] ?? 'pending')===$s?'selected':'' ?>><?= $s ?></option>
         <?php endforeach; ?>
       </select>
     </label>

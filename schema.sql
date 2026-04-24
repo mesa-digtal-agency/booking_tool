@@ -53,7 +53,7 @@ CREATE TABLE bookings (
     booking_date VARCHAR(10) NOT NULL,
     start_time VARCHAR(5) NOT NULL,
     end_time VARCHAR(5) NOT NULL,
-    status VARCHAR(16) NOT NULL DEFAULT 'confirmed',
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
     management_token VARCHAR(36) NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT {{NOW}},
     FOREIGN KEY (service_id) REFERENCES services(id),

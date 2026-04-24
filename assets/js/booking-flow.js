@@ -69,9 +69,14 @@
     return `${d.getFullYear()}-${m}-${day}`;
   }
   function shiftDate(iso, days) {
-    const d = new Date(iso + 'T00:00:00');
+    // Parse and format in local time to avoid a UTC round-trip that would
+    // drop an entire day for users east of UTC (e.g. Asia, Europe, etc.).
+    const parts = String(iso).split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
   }
 
   // ------------------------------------------------------------------

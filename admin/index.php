@@ -196,7 +196,7 @@ admin_header();
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const hoursLabels = Array.from({length:24}, (_,i) => String(i).padStart(2,'0') + ':00');
+const hoursLabels = <?= json_encode(array_map(fn($h) => format_time_display(sprintf('%02d:00', $h)), range(0, 23))) ?>;
 const hoursData = <?= json_encode(array_values($hour_map)) ?>;
 const primary = '<?= e($primary = primary_color()) ?>';
 
