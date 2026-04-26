@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         if ($booking) {
+            $old_status = (string)($booking['status'] ?? '');
             // Staff role can only edit their own; already enforced above.
             db_exec(
                 "UPDATE bookings SET customer_name=?, customer_email=?, customer_phone=?, notes=?,
@@ -87,6 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  $data['service_id'],$data['staff_id'],$data['booking_date'],$data['start_time'],$end,$data['status'],
                  (int)$booking['id']]
             );
+            if ($old_status !== $data['status']) {
+                send_booking_status_change_email((int)$booking['id'], $old_status, $data['status']);
+            }
             flash('ok', 'Booking updated.');
         } else {
             $token = uuid_v4();

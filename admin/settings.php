@@ -36,6 +36,32 @@ function normalize_hex_color(string $value, string $fallback): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $value) ? $value : $fallback;
 }
 
+function render_settings_color_picker(string $name, string $label, string $value, array $palette): void {
+    $value = strtolower($value);
+    $colors = $palette;
+    if (preg_match('/^#[0-9a-f]{6}$/i', $value) && !in_array($value, $colors, true)) {
+        array_unshift($colors, $value);
+    }
+    ?>
+    <div class="settings-color-picker" data-color-picker>
+      <input type="hidden" name="<?= e($name) ?>" value="<?= e($value) ?>" data-color-value>
+      <div class="mb-2">
+        <div><?= e($label) ?></div>
+      </div>
+      <div class="container-items" role="listbox" aria-label="<?= e($label) ?>">
+        <?php foreach ($colors as $color): ?>
+          <button type="button"
+                  class="item-color <?= strtolower($color) === $value ? 'selected' : '' ?>"
+                  style="--color: <?= e($color) ?>"
+                  data-color="<?= e($color) ?>"
+                  aria-label="<?= e($color) ?>"
+                  aria-selected="<?= strtolower($color) === $value ? 'true' : 'false' ?>"></button>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
 
@@ -54,6 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $next['currency_symbol'] = str_in($_POST, 'currency_symbol', 8);
     $next['default_phone_country_code'] = str_in($_POST, 'default_phone_country_code', 8);
     $next['slot_interval_minutes'] = max(5, min(240, (int)($_POST['slot_interval_minutes'] ?? 30)));
+    $next['admin_rows_per_page'] = max(5, min(200, (int)($_POST['admin_rows_per_page'] ?? 25)));
+    unset($next['bookings_per_page']);
     $next['time_format'] = ($_POST['time_format'] ?? '24h') === '12h' ? '12h' : '24h';
     $next['mail_driver'] = ($_POST['mail_driver'] ?? 'mail') === 'smtp' ? 'smtp' : 'mail';
     $next['smtp_host'] = str_in($_POST, 'smtp_host', 190);
@@ -90,6 +118,7 @@ $timezones = timezone_identifiers_list();
 $current_tz = settings_string($cfg, 'business_timezone', 'UTC');
 $settings_primary_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'primary_color')) ? settings_string($cfg, 'primary_color') : primary_color();
 $settings_accent_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'accent_color')) ? settings_string($cfg, 'accent_color') : accent_color();
+$settings_color_palette = ['#be123c', '#f05c4f', '#f97316', '#d97706', '#65a30d', '#059669', '#0284c7', '#2563eb', '#7c3aed', '#8b5cf6', '#374151', '#000000'];
 
 admin_header();
 ?>
@@ -107,7 +136,7 @@ window.addEventListener('DOMContentLoaded', function () {
   <h1 class="text-2xl font-semibold mr-auto">Settings</h1>
 </div>
 
-<form method="post" class="space-y-4 max-w-5xl">
+<form method="post" class="settings-grid grid xl:grid-cols-2 gap-4 max-w-none">
   <?= csrf_field() ?>
 
   <section class="bg-white border border-neutral-200 rounded-xl p-5">
@@ -144,14 +173,10 @@ window.addEventListener('DOMContentLoaded', function () {
   <section class="bg-white border border-neutral-200 rounded-xl p-5">
     <h2 class="font-semibold mb-4">Appearance</h2>
     <div class="grid md:grid-cols-2 gap-4 text-sm">
-      <label>Primary color
-        <input name="primary_color" type="color" value="<?= e($settings_primary_color) ?>" class="mt-1 h-10 w-full rounded-md border border-neutral-200">
-      </label>
-      <label>Accent color
-        <input name="accent_color" type="color" value="<?= e($settings_accent_color) ?>" class="mt-1 h-10 w-full rounded-md border border-neutral-200">
-      </label>
+      <?php render_settings_color_picker('primary_color', 'Primary color', $settings_primary_color, $settings_color_palette); ?>
+      <?php render_settings_color_picker('accent_color', 'Accent color', $settings_accent_color, $settings_color_palette); ?>
       <label>Logo URL
-        <input name="business_logo_url" type="url" value="<?= e(settings_string($cfg, 'business_logo_url')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+        <input name="business_logo_url" type="url" value="<?= e(settings_string($cfg, 'business_logo_url')) ?>" placeholder="https://example.com/logo.png" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
       </label>
       <label>Logo path
         <input name="logo_path" value="<?= e(settings_string($cfg, 'logo_path')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
@@ -175,6 +200,9 @@ window.addEventListener('DOMContentLoaded', function () {
       <label>Slot interval minutes
         <input name="slot_interval_minutes" type="number" min="5" max="240" step="5" value="<?= e((string)($cfg['slot_interval_minutes'] ?? 30)) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
       </label>
+      <label>Rows per page
+        <input name="admin_rows_per_page" type="number" min="5" max="200" step="5" value="<?= e((string)($cfg['admin_rows_per_page'] ?? $cfg['bookings_per_page'] ?? 25)) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+      </label>
     </div>
   </section>
 
@@ -192,7 +220,7 @@ window.addEventListener('DOMContentLoaded', function () {
     </div>
   </section>
 
-  <section class="bg-white border border-neutral-200 rounded-xl p-5">
+  <section class="bg-white border border-neutral-200 rounded-xl p-5 xl:col-span-2">
     <h2 class="font-semibold mb-4">Mail</h2>
     <div class="grid md:grid-cols-2 gap-4 text-sm">
       <label>Mail driver
@@ -229,8 +257,38 @@ window.addEventListener('DOMContentLoaded', function () {
     </div>
   </section>
 
-  <div class="flex justify-end">
+  <div class="flex justify-end xl:col-span-2">
     <button class="px-5 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Save settings</button>
   </div>
 </form>
+<script>
+(function(){
+  const validHex = /^#[0-9a-f]{6}$/i;
+
+  function setPickerValue(picker, color) {
+    color = String(color || '').trim().toLowerCase();
+    if (!validHex.test(color)) return;
+
+    const hidden = picker.querySelector('[data-color-value]');
+    if (hidden) hidden.value = color;
+
+    picker.querySelectorAll('.item-color').forEach(function(btn) {
+      const selected = (btn.dataset.color || '').toLowerCase() === color;
+      btn.classList.toggle('selected', selected);
+      btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+  }
+
+  document.querySelectorAll('[data-color-picker]').forEach(function(picker) {
+    picker.querySelectorAll('.item-color').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        setPickerValue(picker, btn.dataset.color);
+        if (navigator.clipboard && btn.dataset.color) {
+          navigator.clipboard.writeText(btn.dataset.color).catch(function(){});
+        }
+      });
+    });
+  });
+})();
+</script>
 <?php admin_footer(); ?>

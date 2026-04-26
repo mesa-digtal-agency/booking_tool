@@ -116,7 +116,7 @@ function admin_header(): void {
   </aside>
 
   <!-- Main area -->
-  <div class="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+  <div class="relative flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
     <header class="md:hidden flex items-center justify-between bg-white border-b border-neutral-200 px-4 py-3">
       <button id="sidebarToggle" class="p-2 rounded-lg border border-neutral-200" aria-label="Menu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -124,17 +124,31 @@ function admin_header(): void {
       <div class="font-semibold text-sm truncate"><?= e($biz) ?></div>
       <div style="width:38px"></div>
     </header>
-    <div class="flex-1 overflow-y-auto p-4 md:p-8">
+    <div class="admin-main flex-1 overflow-y-auto p-4 md:p-8">
 <?php
 }
 
 function admin_footer(): void { ?>
+    </div>
+    <div id="adminLoadingOverlay" class="admin-loading-overlay" aria-hidden="true">
+      <div class="banter-loader" aria-label="Loading">
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+        <div class="banter-loader__box"></div>
+      </div>
     </div>
   </div>
 </div>
 <div id="toastRoot"></div>
 <script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
 <script src="<?= e(asset('/assets/js/clock.js')) ?>"></script>
+<script src="<?= e(asset('/assets/js/admin-loader.js')) ?>"></script>
 <script>
 // Mobile sidebar drawer
 (function(){

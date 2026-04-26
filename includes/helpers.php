@@ -164,6 +164,40 @@ function booking_all_statuses(): array {
     return ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
 }
 
+/** Human label for a booking status. */
+function booking_status_label(string $status): string {
+    return ucwords(str_replace('_', ' ', $status));
+}
+
+/** Notify a customer when an existing booking changes status. */
+function send_booking_status_change_email(int $booking_id, string $old_status, string $new_status): bool {
+    if ($old_status === $new_status) return true;
+    if (!in_array($new_status, booking_all_statuses(), true)) return false;
+    if (!function_exists('send_mail')) return false;
+
+    $booking = db_fetch(
+        "SELECT b.*, s.name AS service_name, s.duration_minutes, s.price,
+                st.name AS staff_name
+         FROM bookings b
+         JOIN services s ON s.id = b.service_id
+         JOIN staff st   ON st.id = b.staff_id
+         WHERE b.id = ?",
+        [$booking_id]
+    );
+    if (!$booking || !is_valid_email((string)($booking['customer_email'] ?? ''))) {
+        return false;
+    }
+
+    $old_status_label = booking_status_label($old_status);
+    $new_status_label = booking_status_label($new_status);
+    $subject = 'Your booking status changed to ' . $new_status_label;
+
+    ob_start();
+    include APP_ROOT . '/includes/email-templates/status-change.php';
+    $html = ob_get_clean();
+    return @send_mail((string)$booking['customer_email'], $subject, $html);
+}
+
 /** Build absolute URL using app_url. */
 function app_url(string $path = ''): string {
     $base = rtrim((string)($GLOBALS['CONFIG']['app_url'] ?? ''), '/');
@@ -215,6 +249,14 @@ function import_export_enabled(): bool {
 /** Whether the admin Settings page should be visible and reachable. */
 function settings_page_enabled(): bool {
     return config_bool('show_settings_page', true);
+}
+
+/** Rows per page for admin tables with pagination. */
+function admin_rows_per_page(): int {
+    $configured = $GLOBALS['CONFIG']['admin_rows_per_page']
+        ?? $GLOBALS['CONFIG']['bookings_per_page']
+        ?? 25;
+    return max(5, min(200, (int)$configured));
 }
 
 /** '24h' or '12h'. */
@@ -437,14 +479,23 @@ function auto_complete_elapsed_bookings(): void {
     $today = $now->format('Y-m-d');
     $time = $now->format('H:i');
     try {
-        db_exec(
-            "UPDATE bookings
-                SET status = 'completed'
+        $elapsed = db_all(
+            "SELECT id, status
+               FROM bookings
               WHERE status = 'confirmed'
                 AND (booking_date < ?
                      OR (booking_date = ? AND end_time <= ?))",
             [$today, $today, $time]
         );
+        foreach ($elapsed as $row) {
+            $updated = db_exec(
+                "UPDATE bookings SET status = 'completed' WHERE id = ? AND status = 'confirmed'",
+                [(int)$row['id']]
+            );
+            if ($updated > 0) {
+                send_booking_status_change_email((int)$row['id'], (string)$row['status'], 'completed');
+            }
+        }
     } catch (Throwable $e) {
         // Swallow — auto-complete is best-effort.
         error_log('auto_complete failed: ' . $e->getMessage());

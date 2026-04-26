@@ -147,11 +147,11 @@ $total_mins = ($hour_end - $hour_start) * 60;
 $initial_scroll_minute = $first_booking_minute === null ? 0 : max(0, $first_booking_minute - 60);
 
 $status_bg = [
-    'confirmed' => '#10b981',
+    'confirmed' => '#3b82f6',
     'pending'   => '#f59e0b',
     'cancelled' => '#ef4444',
-    'completed' => '#6b7280',
-    'no_show'   => '#64748b',
+    'completed' => '#22c55e',
+    'no_show'   => '#a855f7',
 ];
 
 // Nav
@@ -187,7 +187,7 @@ admin_header();
     <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="/admin/blocked-slots.php">+ Block time</a>
 </div>
 
-<div class="bg-white border border-neutral-200 rounded-xl calendar-scroll" data-initial-scroll-minute="<?= (int)$initial_scroll_minute ?>" style="height: calc(100vh - 210px); min-height: 420px; overflow-x: auto; overflow-y: scroll; overscroll-behavior: contain;">
+<div class="bg-white border border-neutral-200 rounded-xl calendar-scroll" data-initial-scroll-minute="<?= (int)$initial_scroll_minute ?>">
     <div class="grid min-w-full" style="grid-template-columns: 60px <?= e($day_columns_css) ?>;">
         <!-- Header row -->
         <div class="calendar-sticky-header bg-white"></div>
@@ -222,8 +222,8 @@ admin_header();
                     $lane_count = max(1, (int)($item['__lane_count'] ?? 1));
                     $lane_width = 100 / $lane_count;
                     $lane_left = $lane * $lane_width;
-                    $bg = $is_b ? '#f3f4f6' : ($status_bg[$item['status']] ?? '#6b7280') . ($is_cancelled ? '18' : '22');
-                    $border = $is_b ? '#9ca3af' : ($status_bg[$item['status']] ?? '#6b7280');
+                    $bg = $is_b ? 'var(--calendar-blocked-bg)' : ($status_bg[$item['status']] ?? '#6b7280') . ($is_cancelled ? '24' : '34');
+                    $border = $is_b ? 'var(--calendar-blocked-border)' : ($status_bg[$item['status']] ?? '#6b7280');
                     $href = $is_b ? '/admin/blocked-slots.php' : '/admin/booking-edit.php?id=' . (int)$item['id'];
                     $item_class = $is_cancelled
                         ? 'absolute rounded-md px-2 py-2 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto'
@@ -265,12 +265,12 @@ admin_header();
 </script>
 
 <div class="flex items-center gap-4 text-xs text-neutral-500 mt-3 flex-wrap">
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#10b98122;border-left:3px solid #10b981"></span>Confirmed</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f59e0b22;border-left:3px solid #f59e0b"></span>Pending</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ef444422;border-left:3px solid #ef4444"></span>Cancelled</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6b728022;border-left:3px solid #6b7280"></span>Completed</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#64748b22;border-left:3px solid #64748b"></span>No-show</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f3f4f6;border-left:3px solid #9ca3af"></span>Blocked</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#3b82f634;border-left:3px solid #3b82f6"></span>Confirmed</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f59e0b34;border-left:3px solid #f59e0b"></span>Pending</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ef444434;border-left:3px solid #ef4444"></span>Cancelled</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#22c55e34;border-left:3px solid #22c55e"></span>Completed</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#a855f734;border-left:3px solid #a855f7"></span>No-show</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f8fafc;border-left:3px solid #64748b"></span>Blocked</span>
 </div>
 <?php admin_footer(); ?>
 <?php

@@ -11,34 +11,48 @@ $staff_list = is_admin()
     ? db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name")
     : db_all("SELECT id, name FROM staff WHERE id = ? AND is_active = 1", [(int)$scope]);
 
-$selected_id = (int)($_GET['staff_id'] ?? ($staff_list[0]['id'] ?? 0));
-if ($scope !== null) $selected_id = (int)$scope;
+$staff_ids = array_map(fn($s) => (int)$s['id'], $staff_list);
+$selected_raw = (string)($_GET['staff_id'] ?? (is_admin() ? 'all' : (string)($staff_list[0]['id'] ?? 0)));
+$selected_scope = (is_admin() && $selected_raw === 'all') ? 'all' : (string)(int)$selected_raw;
+if ($scope !== null) $selected_scope = (string)(int)$scope;
+if ($selected_scope !== 'all' && !in_array((int)$selected_scope, $staff_ids, true)) {
+    $selected_scope = (string)(int)($staff_list[0]['id'] ?? 0);
+}
+
+$selected_id = $selected_scope === 'all' ? (int)($staff_list[0]['id'] ?? 0) : (int)$selected_scope;
 if (!$selected_id) { admin_header(); echo '<p>No staff to manage.</p>'; admin_footer(); exit; }
 
 $day_names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 $errors = [];
 
-// Ensure 7 rows exist for this staff.
-$rows = db_all("SELECT * FROM working_hours WHERE staff_id = ? ORDER BY day_of_week", [$selected_id]);
-if (count($rows) < 7) {
+function ensure_staff_working_hours_rows(int $staff_id): void {
+    $existing = db_all("SELECT day_of_week FROM working_hours WHERE staff_id = ?", [$staff_id]);
     $present = [];
-    foreach ($rows as $r) $present[(int)$r['day_of_week']] = true;
+    foreach ($existing as $r) $present[(int)$r['day_of_week']] = true;
     for ($d = 0; $d <= 6; $d++) {
         if (!isset($present[$d])) {
             $off = ($d === 0 || $d === 6) ? 1 : 0;
             db_insert(
                 "INSERT INTO working_hours (staff_id, day_of_week, start_time, end_time, is_off) VALUES (?,?,?,?,?)",
-                [$selected_id, $d, '09:00', '17:00', $off]
+                [$staff_id, $d, '09:00', '17:00', $off]
             );
         }
     }
-    $rows = db_all("SELECT * FROM working_hours WHERE staff_id = ? ORDER BY day_of_week", [$selected_id]);
 }
+
+// When viewing All staff, use the first active staff member's hours as the editable template.
+ensure_staff_working_hours_rows($selected_id);
+$rows = db_all("SELECT * FROM working_hours WHERE staff_id = ? ORDER BY day_of_week", [$selected_id]);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $updates = [];
     $all_week_24h = isset($_POST['all_week_24h']);
+    $posted_scope = is_admin() ? (string)($_POST['staff_scope'] ?? $selected_scope) : (string)$selected_id;
+    $save_all_staff = is_admin() && $posted_scope === 'all';
+    $target_staff_ids = $save_all_staff ? $staff_ids : [(int)$posted_scope];
+    $target_staff_ids = array_values(array_filter($target_staff_ids, fn($id) => in_array((int)$id, $staff_ids, true)));
+    if (!$target_staff_ids) $errors[] = 'Choose a staff member to update.';
 
     foreach ($rows as $r) {
         $d = (int)$r['day_of_week'];
@@ -59,15 +73,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        $updates[] = [$start, $end, $off, (int)$r['id']];
+        $updates[] = [$d, $start, $end, $off];
     }
 
     if (!$errors) {
-        foreach ($updates as $u) {
-            db_exec("UPDATE working_hours SET start_time = ?, end_time = ?, is_off = ? WHERE id = ?", $u);
+        foreach ($target_staff_ids as $target_staff_id) {
+            ensure_staff_working_hours_rows((int)$target_staff_id);
+            foreach ($updates as [$d, $start, $end, $off]) {
+                db_exec(
+                    "UPDATE working_hours SET start_time = ?, end_time = ?, is_off = ? WHERE staff_id = ? AND day_of_week = ?",
+                    [$start, $end, $off, (int)$target_staff_id, (int)$d]
+                );
+            }
         }
-        flash('ok', 'Working hours saved.');
-        redirect('/admin/staff-hours.php?staff_id=' . $selected_id);
+        flash('ok', $save_all_staff ? 'Working hours saved for all staff.' : 'Working hours saved.');
+        redirect('/admin/staff-hours.php?staff_id=' . rawurlencode($posted_scope));
     }
 }
 
@@ -91,19 +111,28 @@ window.addEventListener('DOMContentLoaded', function () {
 
 <div class="flex items-center gap-3 mb-4">
   <h1 class="text-2xl font-semibold mr-auto">Working hours</h1>
-  <?php if (is_admin()): ?>
-  <form method="get" class="inline">
-    <select name="staff_id" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg border border-neutral-200 text-sm">
-      <?php foreach ($staff_list as $s): ?>
-        <option value="<?= (int)$s['id'] ?>" <?= (int)$s['id']===$selected_id?'selected':'' ?>><?= e($s['name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
-  <?php endif; ?>
 </div>
 
 <form id="workingHoursForm" method="post" class="bg-white border border-neutral-200 rounded-xl p-5 max-w-3xl">
   <?= csrf_field() ?>
+  <?php if (is_admin()): ?>
+    <div class="mb-5 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+      <div class="grid md:grid-cols-[180px_1fr] gap-3 md:items-center">
+        <div>
+          <div class="text-sm font-semibold">Hours apply to</div>
+          <div class="text-xs text-neutral-500">Use All staff for business-wide hours.</div>
+        </div>
+        <select name="staff_scope" id="staffScope" class="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm">
+          <option value="all" <?= $selected_scope === 'all' ? 'selected' : '' ?>>All staff</option>
+          <?php foreach ($staff_list as $s): ?>
+            <option value="<?= (int)$s['id'] ?>" <?= $selected_scope === (string)(int)$s['id'] ? 'selected' : '' ?>><?= e($s['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+  <?php else: ?>
+    <input type="hidden" name="staff_scope" value="<?= (int)$selected_id ?>">
+  <?php endif; ?>
   <div class="divide-y divide-neutral-100">
     <?php foreach ($rows as $r):
       $d = (int)$r['day_of_week'];
@@ -138,6 +167,15 @@ window.addEventListener('DOMContentLoaded', function () {
   const form = document.getElementById('workingHoursForm');
   if (!form) return;
   const allWeek = document.getElementById('allWeek24h');
+  const staffScope = document.getElementById('staffScope');
+
+  if (staffScope) {
+    staffScope.addEventListener('change', function() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('staff_id', staffScope.value);
+      window.location.href = url.toString();
+    });
+  }
 
   function syncRow(row) {
     const off = row.querySelector('[data-off]');

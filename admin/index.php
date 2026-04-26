@@ -81,6 +81,17 @@ $status_rows = db_all(
 );
 $status_map = ['confirmed'=>0,'pending'=>0,'cancelled'=>0,'completed'=>0,'no_show'=>0];
 foreach ($status_rows as $r) $status_map[$r['status']] = (int)$r['cnt'];
+$month_total = array_sum($status_map);
+$active_month = $status_map['confirmed'] + $status_map['completed'];
+$completion_rate = $month_total > 0 ? round(($active_month / $month_total) * 100) : 0;
+$avg_booking_value = $active_month > 0 ? $stats['month']['revenue'] / $active_month : 0;
+$open_count = (int)db_scalar(
+    "SELECT COUNT(*) FROM bookings
+     WHERE booking_date >= ? AND status IN ('pending','confirmed') {$scope_where}",
+    [$today]
+);
+$active_services = (int)db_scalar("SELECT COUNT(*) FROM services WHERE is_active = 1");
+$active_staff = is_admin() ? (int)db_scalar("SELECT COUNT(*) FROM staff WHERE is_active = 1") : null;
 
 // Staff performance (this month) — admin only.
 $staff_perf = [];
@@ -102,8 +113,9 @@ admin_header();
 <?= flash_render() ?>
 <h1 class="text-xl font-semibold mb-4">Dashboard</h1>
 
-<!-- Row 1: stat cards (compact) -->
-<div class="grid grid-cols-3 gap-3 mb-3">
+<div class="dashboard-grid min-h-[calc(100vh-7rem)] grid grid-rows-[auto_minmax(280px,1.25fr)_minmax(260px,1fr)] gap-3">
+<!-- Row 1: stat cards -->
+<div class="grid md:grid-cols-3 xl:grid-cols-6 gap-3">
   <?php foreach (['today'=>'Today','week'=>'This week','month'=>'This month'] as $k=>$lbl): ?>
     <div class="bg-white border border-neutral-200 rounded-xl p-3">
       <div class="text-[10px] text-neutral-500 uppercase tracking-wide"><?= e($lbl) ?></div>
@@ -114,23 +126,47 @@ admin_header();
       <div class="text-xs text-neutral-600 mt-0.5"><?= e(money_with_currency($stats[$k]['revenue'])) ?> <span class="text-neutral-400">revenue</span></div>
     </div>
   <?php endforeach; ?>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide">Open bookings</div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= $open_count ?></div>
+      <div class="text-[11px] text-neutral-500">upcoming</div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5">Pending and confirmed</div>
+  </div>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide">Completion rate</div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= $completion_rate ?>%</div>
+      <div class="text-[11px] text-neutral-500">this month</div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5"><?= $active_month ?> of <?= $month_total ?> bookings</div>
+  </div>
+  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide"><?= is_admin() ? 'Active staff' : 'Active services' ?></div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= is_admin() ? (int)$active_staff : $active_services ?></div>
+      <div class="text-[11px] text-neutral-500"><?= is_admin() ? 'people' : 'services' ?></div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5"><?= e(money_with_currency($avg_booking_value)) ?> <span class="text-neutral-400">avg booking</span></div>
+  </div>
 </div>
 
 <!-- Row 2: charts -->
-<div class="grid lg:grid-cols-3 gap-3 mb-3">
-  <div class="bg-white border border-neutral-200 rounded-xl p-3 lg:col-span-2">
+<div class="grid lg:grid-cols-3 gap-3 min-h-0">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 lg:col-span-2 flex flex-col min-h-0">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Busiest hours (this month)</div>
-    <div style="height: 160px;"><canvas id="hoursChart"></canvas></div>
+    <div class="flex-1 min-h-[220px]"><canvas id="hoursChart"></canvas></div>
   </div>
-  <div class="bg-white border border-neutral-200 rounded-xl p-3 flex flex-col">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 flex flex-col min-h-0">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Status breakdown</div>
-    <div style="height: 160px; position: relative;" class="flex-1"><canvas id="statusChart"></canvas></div>
+    <div class="flex-1 min-h-[220px] relative"><canvas id="statusChart"></canvas></div>
   </div>
 </div>
 
 <!-- Row 3: upcoming + top services + staff performance -->
-<div class="grid lg:grid-cols-3 gap-3">
-  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+<div class="grid lg:grid-cols-3 gap-3 min-h-0">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Upcoming bookings</div>
     <?php if (!$upcoming): ?>
       <div class="text-xs text-neutral-500">Nothing coming up.</div>
@@ -149,7 +185,7 @@ admin_header();
     <?php endif; ?>
   </div>
 
-  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Top services (this month)</div>
     <?php if (!$top_services): ?>
       <div class="text-xs text-neutral-500">No bookings yet.</div>
@@ -166,12 +202,12 @@ admin_header();
   </div>
 
   <?php if (is_admin()): ?>
-  <div class="bg-white border border-neutral-200 rounded-xl p-3">
+  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Staff performance</div>
     <?php if (!$staff_perf): ?>
       <div class="text-xs text-neutral-500">No active staff yet.</div>
     <?php else: ?>
-      <div class="overflow-y-auto" style="max-height: 160px;">
+      <div class="nice-scroll overflow-y-auto pr-3 flex-1 min-h-0">
         <table class="w-full text-xs">
           <thead class="text-neutral-500 text-left sticky top-0 bg-white">
             <tr><th class="py-1 font-normal">Staff</th><th class="font-normal">Bkg</th><th class="font-normal text-right">Rev.</th></tr>
@@ -193,6 +229,7 @@ admin_header();
   <!-- Placeholder keeps the 3-col grid balanced for staff role. -->
   <div></div>
   <?php endif; ?>
+</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -220,7 +257,7 @@ new Chart(document.getElementById('statusChart'), {
     labels: ['Confirmed','Pending','Cancelled','Completed','No-show'],
     datasets: [{
       data: [<?= $status_map['confirmed'] ?>, <?= $status_map['pending'] ?>, <?= $status_map['cancelled'] ?>, <?= $status_map['completed'] ?>, <?= $status_map['no_show'] ?>],
-      backgroundColor: ['#10b981','#f59e0b','#ef4444','#6b7280','#64748b'],
+      backgroundColor: ['#60a5fa','#fbbf24','#f87171','#4ade80','#c084fc'],
       borderWidth: 0
     }]
   },

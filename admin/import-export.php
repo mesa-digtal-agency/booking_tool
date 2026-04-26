@@ -221,13 +221,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $token = uuid_v4();
 
             $id = (int)($r['id'] ?? 0);
-            if ($id > 0 && db_fetch("SELECT 1 FROM bookings WHERE id = ?", [$id])) {
+            $existing_booking = $id > 0 ? db_fetch("SELECT status FROM bookings WHERE id = ?", [$id]) : null;
+            if ($existing_booking) {
+                $old_status = (string)$existing_booking['status'];
                 db_exec(
                     "UPDATE bookings SET customer_name=?, customer_email=?, customer_phone=?, notes=?,
                      service_id=?, staff_id=?, booking_date=?, start_time=?, end_time=?, status=?
                      WHERE id=?",
                     [$name, $email, $phone, $notes, $svc_map[$svc_name], $staff_map[$st_name], $date, $start, $end, $status, $id]
                 );
+                if ($old_status !== $status) {
+                    send_booking_status_change_email($id, $old_status, $status);
+                }
                 $updated++;
             } else {
                 db_insert(

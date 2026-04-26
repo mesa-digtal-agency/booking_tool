@@ -11,7 +11,7 @@ $editing = $edit_id > 0 ? db_fetch("SELECT * FROM services WHERE id = ?", [$edit
 if ($edit_id && !$editing) { http_response_code(404); exit('Service not found.'); }
 $errors = [];
 $page = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 20;
+$per_page = admin_rows_per_page();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_admin(); // only admins modify services

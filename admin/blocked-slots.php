@@ -10,6 +10,11 @@ $scope = scope_staff_id();
 $staff_list = is_admin()
     ? db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name")
     : db_all("SELECT id, name FROM staff WHERE id = ? AND is_active = 1", [(int)$scope]);
+$staff_ids = array_map(fn($s) => (int)$s['id'], $staff_list);
+$selected_staff_scope = is_admin() ? (string)($_POST['staff_scope'] ?? 'all') : (string)($scope ?? 0);
+if (is_admin() && $selected_staff_scope !== 'all' && !in_array((int)$selected_staff_scope, $staff_ids, true)) {
+    $selected_staff_scope = 'all';
+}
 
 $errors = [];
 
@@ -39,12 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $deleted = db_exec("DELETE FROM blocked_slots WHERE id IN ($placeholders)$scope_sql", $params);
             flash('ok', $deleted > 0 ? "Removed $deleted blocked slot(s)." : 'No blocked slots were removed.');
+        } else {
+            flash('warn', 'Select at least one blocked slot to delete.');
         }
         redirect('/admin/blocked-slots.php');
     }
 
-    $staff_id = (int)($_POST['staff_id'] ?? ($scope ?? 0));
-    if ($scope !== null) $staff_id = (int)$scope;
+    $staff_scope = is_admin() ? (string)($_POST['staff_scope'] ?? 'all') : (string)($scope ?? 0);
+    $apply_all_staff = is_admin() && $staff_scope === 'all';
+    $target_staff_ids = $apply_all_staff ? $staff_ids : [(int)$staff_scope];
+    if ($scope !== null) $target_staff_ids = [(int)$scope];
+    $target_staff_ids = array_values(array_filter($target_staff_ids, fn($id) => in_array((int)$id, $staff_ids, true)));
     $date   = str_in($_POST, 'date', 10);
     $start  = normalize_time(str_in($_POST, 'start_time', 8)) ?? '';
     $end    = normalize_time(str_in($_POST, 'end_time', 8)) ?? '';
@@ -53,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $repeat_until_enabled = $repeat && !empty($_POST['repeat_until_enabled']);
     $until  = str_in($_POST, 'until', 10);
 
-    if ($staff_id <= 0) $errors[] = 'Staff is required.';
+    if (!$target_staff_ids) $errors[] = 'Staff is required.';
     if (!is_valid_date($date)) $errors[] = 'Date is required.';
     if (!is_valid_time($start) || !is_valid_time($end)) $errors[] = 'Start and end times are required.';
     if (!$errors) {
@@ -69,12 +79,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$repeat_until_enabled) $until = '';
 
     if (!$errors) {
-        db_insert(
-            "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason, repeat_until, repeat_mode)
-             VALUES (?,?,?,?,?,?,?)",
-            [$staff_id, $date, $start, $end, $reason, $repeat && $until !== '' ? $until : null, $repeat ? 'working_day' : null]
-        );
-        flash('ok', $repeat ? 'Recurring blocked slot added.' : 'Blocked slot added.');
+        foreach ($target_staff_ids as $target_staff_id) {
+            db_insert(
+                "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason, repeat_until, repeat_mode)
+                 VALUES (?,?,?,?,?,?,?)",
+                [(int)$target_staff_id, $date, $start, $end, $reason, $repeat && $until !== '' ? $until : null, $repeat ? 'working_day' : null]
+            );
+        }
+        if (count($target_staff_ids) > 1) {
+            flash('ok', $repeat ? 'Recurring blocked slot added for all staff.' : 'Blocked slot added for all staff.');
+        } else {
+            flash('ok', $repeat ? 'Recurring blocked slot added.' : 'Blocked slot added.');
+        }
         redirect('/admin/blocked-slots.php');
     }
 }
@@ -104,21 +120,34 @@ admin_header();
   <script>window.addEventListener('DOMContentLoaded', function(){ <?php foreach ($errors as $er) echo 'window.toast && window.toast(' . json_encode($er) . ', { type: "error", timeout: 7000 });'; ?> });</script>
 <?php endif; ?>
 
-<form method="post" id="blockForm" class="bg-white border border-neutral-200 rounded-xl p-5 mb-6 max-w-3xl grid md:grid-cols-5 gap-3 text-sm">
+<form method="post" id="blockForm" class="bg-white border border-neutral-200 rounded-xl p-5 mb-6 max-w-3xl text-sm">
   <?= csrf_field() ?>
   <?php if (is_admin()): ?>
-  <label>Staff
-    <select name="staff_id" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
-      <?php foreach ($staff_list as $s): ?><option value="<?= (int)$s['id'] ?>"><?= e($s['name']) ?></option><?php endforeach; ?>
-    </select>
-  </label>
+    <div class="mb-5 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+      <div class="grid md:grid-cols-[180px_1fr] gap-3 md:items-center">
+        <div>
+          <div class="text-sm font-semibold">Blockers apply to</div>
+          <div class="text-xs text-neutral-500">Use All staff for business-wide blocked time.</div>
+        </div>
+        <select name="staff_scope" class="w-full px-3 py-2 rounded-lg border border-neutral-200 text-sm">
+          <option value="all" <?= $selected_staff_scope === 'all' ? 'selected' : '' ?>>All staff</option>
+          <?php foreach ($staff_list as $s): ?>
+            <option value="<?= (int)$s['id'] ?>" <?= $selected_staff_scope === (string)(int)$s['id'] ? 'selected' : '' ?>><?= e($s['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+    </div>
+  <?php else: ?>
+    <input type="hidden" name="staff_scope" value="<?= (int)($scope ?? 0) ?>">
   <?php endif; ?>
-  <label>Start date <input type="date" name="date" required value="<?= e(business_today()) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
-  <label>Start <input type="time" name="start_time" required value="12:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
-  <label>End <input type="time" name="end_time" required value="13:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
-  <label class="md:col-span-<?= is_admin() ? '5' : '4' ?>">Reason <input name="reason" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md" placeholder="e.g. Lunch, vacation"></label>
+  <div class="grid md:grid-cols-5 gap-3">
+    <label>Start date <input type="date" name="date" required value="<?= e(business_today()) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+    <label>Start <input type="time" name="start_time" required value="12:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+    <label>End <input type="time" name="end_time" required value="13:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+    <label class="md:col-span-<?= is_admin() ? '5' : '4' ?>">Reason <input name="reason" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md" placeholder="e.g. Lunch, vacation"></label>
+  </div>
 
-  <div class="md:col-span-5 border-t border-neutral-100 pt-3 mt-1 space-y-2">
+  <div class="border-t border-neutral-100 pt-3 mt-4 space-y-2">
     <label class="inline-flex items-center gap-2 cursor-pointer">
       <input type="checkbox" name="repeat" id="repeatCheckbox">
       <span>Repeat on every working day <span class="text-neutral-400 text-xs">(stored as one recurring blocker)</span></span>
@@ -137,7 +166,7 @@ admin_header();
     </div>
   </div>
 
-  <div class="md:col-span-5"><button class="px-4 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Add block</button></div>
+  <div class="mt-4"><button class="px-4 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Add block</button></div>
 </form>
 
 <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
@@ -183,7 +212,7 @@ admin_header();
 </div>
 <div class="mt-3 flex items-center justify-between text-sm">
   <div class="text-neutral-500"><?= count($rows) ?> blocker record(s)</div>
-  <button type="submit" form="bulkDeleteForm" class="px-3 py-1.5 rounded-lg border border-red-500 text-red-600 bg-white" onclick="return confirm('Remove the selected blocked slots?')">Delete selected</button>
+  <button type="submit" form="bulkDeleteForm" id="bulkDeleteButton" class="px-3 py-1.5 rounded-lg border border-red-500 text-red-600 bg-white">Delete selected</button>
 </div>
 <form method="post" id="bulkDeleteForm" class="hidden">
   <?= csrf_field() ?>
@@ -211,10 +240,27 @@ admin_header();
   }
 
   const all = document.getElementById('selectAllBlocks');
-  if (!all) return;
-  all.addEventListener('change', function(){
-    document.querySelectorAll('.blockCheckbox').forEach(el => { el.checked = all.checked; });
-  });
+  if (all) {
+    all.addEventListener('change', function(){
+      document.querySelectorAll('.blockCheckbox').forEach(el => { el.checked = all.checked; });
+    });
+  }
+
+  const bulkButton = document.getElementById('bulkDeleteButton');
+  const bulkForm = document.getElementById('bulkDeleteForm');
+  if (bulkButton && bulkForm) {
+    bulkButton.addEventListener('click', function(e) {
+      const selected = document.querySelectorAll('.blockCheckbox:checked').length;
+      if (selected === 0) {
+        e.preventDefault();
+        window.toast && window.toast('Select at least one blocked slot to delete.', { type: 'warn' });
+        return;
+      }
+      if (!window.confirm('Remove the selected blocked slots?')) {
+        e.preventDefault();
+      }
+    });
+  }
 })();
 </script>
 <?php admin_footer(); ?>

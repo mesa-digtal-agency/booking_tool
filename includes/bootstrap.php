@@ -68,6 +68,8 @@ function load_config(): array {
         'from_email' => 'no-reply@example.com',
         'from_name' => 'My Salon',
         'slot_interval_minutes' => 30,
+        'admin_rows_per_page' => 25,
+        'bookings_per_page' => 25,
         'time_format' => '24h',
     ];
     return $cfg;

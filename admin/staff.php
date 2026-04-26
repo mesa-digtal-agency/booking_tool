@@ -11,7 +11,7 @@ $editing = $edit_id > 0 ? db_fetch("SELECT * FROM staff WHERE id = ?", [$edit_id
 if ($edit_id && !$editing) { http_response_code(404); exit('Not found.'); }
 $errors = [];
 $page = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 20;
+$per_page = admin_rows_per_page();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();

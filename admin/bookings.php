@@ -21,7 +21,7 @@ $status_filter  = $_GET['status']     ?? '';
 $staff_filter   = $_GET['staff_id']   ?? '';
 $service_filter = $_GET['service_id'] ?? '';
 $page = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 25;
+$per_page = admin_rows_per_page();
 
 $where = ['b.booking_date BETWEEN ? AND ?'];
 $params = [$from, $to];
@@ -131,6 +131,7 @@ admin_header();
           <th class="px-3 py-2">Customer</th>
           <th class="px-3 py-2">Service</th>
           <th class="px-3 py-2">Staff</th>
+          <th class="px-3 py-2">Note</th>
           <th class="px-3 py-2">Status</th>
           <th class="px-3 py-2">Price</th>
           <th class="px-3 py-2"></th>
@@ -138,15 +139,15 @@ admin_header();
       </thead>
       <tbody>
       <?php if (!$rows): ?>
-        <tr><td colspan="8" class="px-3 py-8 text-center text-neutral-500">No bookings match these filters.</td></tr>
+        <tr><td colspan="9" class="px-3 py-8 text-center text-neutral-500">No bookings match these filters.</td></tr>
       <?php endif; ?>
       <?php foreach ($rows as $r):
         $colors = [
-          'confirmed' => 'bg-emerald-100 text-emerald-700',
+          'confirmed' => 'bg-blue-100 text-blue-700',
           'pending'   => 'bg-amber-100 text-amber-700',
           'cancelled' => 'bg-red-100 text-red-700',
-          'completed' => 'bg-neutral-100 text-neutral-700',
-          'no_show'   => 'bg-slate-200 text-slate-700',
+          'completed' => 'bg-green-100 text-green-700',
+          'no_show'   => 'bg-violet-100 text-violet-700',
         ];
         $is_cancelled = $r['status'] === 'cancelled';
       ?>
@@ -159,6 +160,13 @@ admin_header();
           </td>
           <td class="px-3 py-2"><?= e($r['service_name']) ?></td>
           <td class="px-3 py-2"><?= e($r['staff_name']) ?></td>
+          <td class="px-3 py-2 max-w-[220px]">
+            <?php if (trim((string)$r['notes']) !== ''): ?>
+              <div class="text-xs text-neutral-600 truncate" title="<?= e($r['notes']) ?>"><?= e($r['notes']) ?></div>
+            <?php else: ?>
+              <span class="text-xs text-neutral-400">-</span>
+            <?php endif; ?>
+          </td>
           <td class="px-3 py-2"><span class="text-xs px-2 py-0.5 rounded-full <?= e($colors[$r['status']] ?? '') ?>"><?= e($r['status']) ?></span></td>
           <td class="px-3 py-2"><?= e(money_with_currency($r['price'])) ?></td>
           <td class="px-3 py-2 text-right"><a class="text-primary hover:underline" href="/admin/booking-edit.php?id=<?= (int)$r['id'] ?>">Edit</a></td>
