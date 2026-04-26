@@ -119,7 +119,16 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 }
 
 /* ---------- Calendar ---------------------------------------------- */
-.calendar-scroll { overflow: auto; max-height: calc(100vh - 220px); }
+.calendar-scroll {
+    height: calc(100vh - 210px);
+    min-height: 420px;
+    overflow-x: auto;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+}
+.calendar-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.calendar-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 6px; }
+.calendar-scroll::-webkit-scrollbar-track { background: #f9fafb; }
 .booking-row-cancelled td:nth-child(2),
 .booking-row-cancelled td:nth-child(3) .font-medium {
     text-decoration: line-through;

@@ -4,6 +4,8 @@ require_once __DIR__ . '/../includes/admin-layout.php';
 require_once __DIR__ . '/../includes/availability.php';
 
 require_login();
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 $page_title = 'Calendar';
 $active = 'calendar';
 
@@ -66,24 +68,79 @@ $blocked = db_all(
 
 $staff_list = db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name");
 
-// Hourly grid 7am-10pm by default, but expand to fit data.
-$hour_start = 7; $hour_end = 22;
+// Hourly grid follows configured working hours, then expands to fit data.
+$hour_start = null;
+$hour_end = null;
+$visible_staff_ids = $staff_filter
+    ? [(int)$staff_filter]
+    : array_map(fn($s) => (int)$s['id'], $staff_list);
+$visible_dows = [];
+foreach ($days as $day) {
+    $day_dt = new DateTime($day);
+    $visible_dows[(int)$day_dt->format('w')] = true;
+}
+if ($visible_staff_ids && $visible_dows) {
+    $staff_placeholders = implode(',', array_fill(0, count($visible_staff_ids), '?'));
+    $dow_values = array_keys($visible_dows);
+    $dow_placeholders = implode(',', array_fill(0, count($dow_values), '?'));
+    $wh_rows = db_all(
+        "SELECT start_time, end_time
+         FROM working_hours
+         WHERE staff_id IN ($staff_placeholders)
+           AND day_of_week IN ($dow_placeholders)
+           AND is_off = 0",
+        array_merge($visible_staff_ids, $dow_values)
+    );
+    foreach ($wh_rows as $wh) {
+        $start_min = time_to_minutes($wh['start_time']);
+        $end_min = time_to_minutes($wh['end_time']);
+        if ($end_min <= $start_min) continue;
+        $hour_start = min($hour_start ?? intdiv($start_min, 60), intdiv($start_min, 60));
+        $hour_end = max($hour_end ?? (int)ceil($end_min / 60), (int)ceil($end_min / 60));
+    }
+}
+$hour_start = $hour_start ?? 7;
+$hour_end = $hour_end ?? 22;
 $by_day = array_fill_keys($days, []);
+$first_booking_minute = null;
 foreach ($bookings as $b) {
     $by_day[$b['booking_date']][] = $b + ['__type' => 'booking'];
-    $hs = (int)substr($b['start_time'], 0, 2);
-    $he = (int)substr($b['end_time'], 0, 2) + 1;
+    $start_min = time_to_minutes($b['start_time']);
+    $end_min = time_to_minutes($b['end_time']);
+    $first_booking_minute = min($first_booking_minute ?? $start_min, $start_min);
+    $hs = intdiv($start_min, 60);
+    $he = (int)ceil($end_min / 60);
     if ($hs < $hour_start) $hour_start = $hs;
     if ($he > $hour_end)   $hour_end = $he;
 }
 foreach ($blocked as $bl) {
     foreach (expand_blocked_slot_for_days($bl, $days) as $occurrence) {
         $by_day[$occurrence['date']][] = $occurrence + ['__type' => 'blocked'];
+        $hs = intdiv(time_to_minutes($occurrence['start_time']), 60);
+        $he = (int)ceil(time_to_minutes($occurrence['end_time']) / 60);
+        if ($hs < $hour_start) $hour_start = $hs;
+        if ($he > $hour_end)   $hour_end = $he;
     }
 }
-$hour_start = max(0, $hour_start);
-$hour_end   = min(24, $hour_end);
+foreach ($days as $day) {
+    $by_day[$day] = calendar_items_with_lanes($by_day[$day]);
+}
+$day_min_widths = [];
+foreach ($days as $day) {
+    $max_lanes = 1;
+    foreach ($by_day[$day] as $item) {
+        $max_lanes = max($max_lanes, (int)($item['__lane_count'] ?? 1));
+    }
+    $day_min_widths[$day] = max(220, $max_lanes * 180);
+}
+$day_columns_css = implode(' ', array_map(
+    fn($day) => 'minmax(' . $day_min_widths[$day] . 'px, 1fr)',
+    $days
+));
+$hour_start = 0;
+$hour_end = 24;
 $total_mins = ($hour_end - $hour_start) * 60;
+$initial_scroll_minute = $first_booking_minute === null ? 0 : max(0, $first_booking_minute - 60);
 
 $status_bg = [
     'confirmed' => '#10b981',
@@ -126,8 +183,8 @@ admin_header();
     <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="/admin/blocked-slots.php">+ Block time</a>
 </div>
 
-<div class="bg-white border border-neutral-200 rounded-xl overflow-hidden calendar-scroll">
-    <div class="grid" style="grid-template-columns: 60px repeat(<?= count($days) ?>, 1fr);">
+<div class="bg-white border border-neutral-200 rounded-xl calendar-scroll" data-initial-scroll-minute="<?= (int)$initial_scroll_minute ?>" style="height: calc(100vh - 210px); min-height: 420px; overflow-x: auto; overflow-y: scroll; overscroll-behavior: contain;">
+    <div class="grid min-w-full" style="grid-template-columns: 60px <?= e($day_columns_css) ?>;">
         <!-- Header row -->
         <div></div>
         <?php foreach ($days as $d): $dt2 = new DateTime($d); ?>
@@ -138,7 +195,7 @@ admin_header();
             </div>
         <?php endforeach; ?>
         <!-- Time grid -->
-        <div class="relative">
+        <div class="relative" data-calendar-time-grid>
             <?php for ($h = $hour_start; $h < $hour_end; $h++): ?>
                 <div class="h-20 text-right pr-2 text-[11px] text-neutral-400 border-t border-neutral-100"><?= e(format_time_display(sprintf('%02d:00', $h))) ?></div>
             <?php endfor; ?>
@@ -154,23 +211,33 @@ admin_header();
                     $em = time_to_minutes($item['end_time']) - $hour_start * 60;
                     $pxPerMin = 80 / 60; // h-20 = 80px per hour
                     $top_px = max(0, $sm * $pxPerMin);
-                    $height_px = max(44, ($em - $sm) * $pxPerMin); // min-height 44px so short slots stay readable
                     $is_cancelled = !$is_b && ($item['status'] ?? '') === 'cancelled';
-                    $bg = $is_b ? '#f3f4f6' : ($status_bg[$item['status']] ?? '#6b7280') . ($is_cancelled ? '14' : '22');
+                    $min_card_height = $is_cancelled ? 64 : 44;
+                    $height_px = max($min_card_height, ($em - $sm) * $pxPerMin); // keep short slots readable
+                    $lane = max(0, (int)($item['__lane'] ?? 0));
+                    $lane_count = max(1, (int)($item['__lane_count'] ?? 1));
+                    $lane_width = 100 / $lane_count;
+                    $lane_left = $lane * $lane_width;
+                    $bg = $is_b ? '#f3f4f6' : ($status_bg[$item['status']] ?? '#6b7280') . ($is_cancelled ? '18' : '22');
                     $border = $is_b ? '#9ca3af' : ($status_bg[$item['status']] ?? '#6b7280');
                     $href = $is_b ? '/admin/blocked-slots.php' : '/admin/booking-edit.php?id=' . (int)$item['id'];
                     $item_class = $is_cancelled
-                        ? 'absolute left-1 right-1 rounded-md px-2 py-1 text-[11px] leading-tight overflow-hidden z-0 opacity-70 hover:z-20 hover:opacity-100 hover:shadow-md hover:h-auto'
-                        : 'absolute left-1 right-1 rounded-md px-2 py-1 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto';
+                        ? 'absolute rounded-md px-2 py-2 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto'
+                        : 'absolute rounded-md px-2 py-1 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto';
+                    $inline_layout = 'left: calc(' . number_format($lane_left, 6, '.', '') . '% + 4px); width: calc(' . number_format($lane_width, 6, '.', '') . '% - 8px);';
                 ?>
                 <a href="<?= e($href) ?>" class="<?= e($item_class) ?>"
-                   style="top: <?= $top_px ?>px; height: <?= $height_px ?>px; min-height: 44px; background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
+                   title="<?= !$is_b ? e($item['customer_name'] . ' - ' . $item['service_name'] . ' - ' . $item['staff_name'] . ' - ' . $item['status']) : '' ?>"
+                   style="top: <?= $top_px ?>px; height: <?= $height_px ?>px; min-height: <?= $min_card_height ?>px; <?= $inline_layout ?> background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
                    <?php if ($is_b): ?>
                        <div class="font-medium truncate">Blocked - <?= e($item['staff_name']) ?></div>
                        <div class="text-neutral-500 truncate"><?= e($item['reason']) ?></div>
                    <?php else: ?>
                        <div class="font-medium truncate <?= $is_cancelled ? 'line-through decoration-red-300' : '' ?>"><?= e(format_time_display($item['start_time'])) ?> <?= e($item['customer_name']) ?></div>
-                       <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> - <?= e($item['staff_name']) ?><?= $is_cancelled ? ' - cancelled' : '' ?></div>
+                       <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> - <?= e($item['staff_name']) ?></div>
+                       <?php if ($is_cancelled): ?>
+                           <div class="text-red-700 truncate mt-1">cancelled</div>
+                       <?php endif; ?>
                    <?php endif; ?>
                 </a>
                 <?php endforeach; ?>
@@ -178,6 +245,20 @@ admin_header();
         <?php endforeach; ?>
     </div>
 </div>
+
+<script>
+(function(){
+  const scroller = document.querySelector('.calendar-scroll[data-initial-scroll-minute]');
+  if (!scroller) return;
+  const minute = Number(scroller.dataset.initialScrollMinute || 0);
+  if (!Number.isFinite(minute) || minute <= 0) return;
+  const timeGrid = scroller.querySelector('[data-calendar-time-grid]');
+  window.requestAnimationFrame(() => {
+    const gridTop = timeGrid ? timeGrid.offsetTop : 0;
+    scroller.scrollTop = Math.max(0, gridTop + (minute * 80 / 60));
+  });
+})();
+</script>
 
 <div class="flex items-center gap-4 text-xs text-neutral-500 mt-3 flex-wrap">
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#10b98122;border-left:3px solid #10b981"></span>Confirmed</span>
@@ -198,4 +279,79 @@ function expand_blocked_slot_for_days(array $row, array $days): array {
         $out[] = $copy;
     }
     return $out;
+}
+
+function calendar_items_with_lanes(array $items): array {
+    if (count($items) <= 1) {
+        foreach ($items as &$item) {
+            $item['__lane'] = 0;
+            $item['__lane_count'] = 1;
+        }
+        unset($item);
+        return $items;
+    }
+
+    usort($items, function (array $a, array $b): int {
+        $a_start = time_to_minutes($a['start_time']);
+        $b_start = time_to_minutes($b['start_time']);
+        if ($a_start !== $b_start) return $a_start <=> $b_start;
+
+        $a_end = time_to_minutes($a['end_time']);
+        $b_end = time_to_minutes($b['end_time']);
+        if ($a_end !== $b_end) return $b_end <=> $a_end;
+
+        $a_active = (($a['__type'] ?? '') === 'booking') && in_array($a['status'] ?? '', booking_active_statuses(), true);
+        $b_active = (($b['__type'] ?? '') === 'booking') && in_array($b['status'] ?? '', booking_active_statuses(), true);
+        if ($a_active !== $b_active) return $a_active ? -1 : 1;
+
+        return ((int)($a['id'] ?? 0)) <=> ((int)($b['id'] ?? 0));
+    });
+
+    $out = [];
+    $cluster = [];
+    $cluster_end = null;
+    foreach ($items as $item) {
+        $start = time_to_minutes($item['start_time']);
+        $end = time_to_minutes($item['end_time']);
+        if ($cluster && $cluster_end !== null && $start >= $cluster_end) {
+            array_push($out, ...calendar_assign_lanes($cluster));
+            $cluster = [];
+            $cluster_end = null;
+        }
+        $cluster[] = $item;
+        $cluster_end = max($cluster_end ?? $end, $end);
+    }
+    if ($cluster) {
+        array_push($out, ...calendar_assign_lanes($cluster));
+    }
+
+    usort($out, function (array $a, array $b): int {
+        $a_start = time_to_minutes($a['start_time']);
+        $b_start = time_to_minutes($b['start_time']);
+        if ($a_start !== $b_start) return $a_start <=> $b_start;
+        return ((int)($a['__lane'] ?? 0)) <=> ((int)($b['__lane'] ?? 0));
+    });
+    return $out;
+}
+
+function calendar_assign_lanes(array $cluster): array {
+    $lane_ends = [];
+    foreach ($cluster as &$item) {
+        $start = time_to_minutes($item['start_time']);
+        $end = time_to_minutes($item['end_time']);
+        $lane = 0;
+        while (isset($lane_ends[$lane]) && $lane_ends[$lane] > $start) {
+            $lane++;
+        }
+        $lane_ends[$lane] = $end;
+        $item['__lane'] = $lane;
+    }
+    unset($item);
+
+    $lane_count = max(1, count($lane_ends));
+    foreach ($cluster as &$item) {
+        $item['__lane_count'] = $lane_count;
+    }
+    unset($item);
+    return $cluster;
 }
