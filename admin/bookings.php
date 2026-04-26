@@ -49,7 +49,10 @@ $sql = "SELECT b.*, s.name AS service_name, s.price, st.name AS staff_name
         JOIN services s ON s.id = b.service_id
         JOIN staff st ON st.id = b.staff_id
         WHERE $where_sql
-        ORDER BY b.booking_date DESC, b.start_time DESC";
+        ORDER BY b.booking_date DESC,
+                 b.start_time DESC,
+                 CASE WHEN b.status IN ('pending','confirmed') THEN 0 ELSE 1 END,
+                 b.id DESC";
 
 // CSV export
 if (($_GET['export'] ?? '') === 'csv') {
@@ -145,12 +148,13 @@ admin_header();
           'completed' => 'bg-neutral-100 text-neutral-700',
           'no_show'   => 'bg-slate-200 text-slate-700',
         ];
+        $is_cancelled = $r['status'] === 'cancelled';
       ?>
-        <tr class="border-t border-neutral-100">
+        <tr class="border-t border-neutral-100 <?= $is_cancelled ? 'booking-row-cancelled bg-red-50/30 text-neutral-500' : '' ?>">
           <td class="px-3 py-2 whitespace-nowrap"><?= e($r['booking_date']) ?></td>
           <td class="px-3 py-2 whitespace-nowrap"><?= e(format_time_display($r['start_time'])) ?> – <?= e(format_time_display($r['end_time'])) ?></td>
           <td class="px-3 py-2">
-            <div class="font-medium"><?= e($r['customer_name']) ?></div>
+            <div class="font-medium <?= $is_cancelled ? 'line-through decoration-red-300' : '' ?>"><?= e($r['customer_name']) ?></div>
             <div class="text-xs text-neutral-500"><?= e($r['customer_email']) ?> · <?= e($r['customer_phone']) ?></div>
           </td>
           <td class="px-3 py-2"><?= e($r['service_name']) ?></td>

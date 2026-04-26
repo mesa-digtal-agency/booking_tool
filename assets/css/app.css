@@ -120,4 +120,9 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 
 /* ---------- Calendar ---------------------------------------------- */
 .calendar-scroll { overflow: auto; max-height: calc(100vh - 220px); }
+.booking-row-cancelled td:nth-child(2),
+.booking-row-cancelled td:nth-child(3) .font-medium {
+    text-decoration: line-through;
+    text-decoration-color: #fca5a5;
+}
 canvas { max-width: 100%; }
