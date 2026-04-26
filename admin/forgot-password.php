@@ -43,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 done_post:
 
 $primary = primary_color();
+$accent = accent_color();
+$dark = dark_mode_enabled();
 $biz = business_name();
 $logo = logo_url();
 ?><!doctype html>
@@ -53,9 +55,9 @@ $logo = logo_url();
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };</script>
 <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-<style>:root{--primary-color: <?= e($primary) ?>;}</style>
+<style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
 </head>
-<body class="min-h-screen bg-neutral-50 text-neutral-900 flex items-center justify-center p-4">
+<body class="min-h-screen bg-neutral-50 text-neutral-900 flex items-center justify-center p-4 <?= $dark ? 'theme-dark' : '' ?>">
 <div id="toastRoot"></div>
 <div class="w-full max-w-sm bg-white border border-neutral-200 rounded-2xl p-7 shadow-sm">
   <div class="flex items-center gap-3 mb-5 justify-center flex-col">

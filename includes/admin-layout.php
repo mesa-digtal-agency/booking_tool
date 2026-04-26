@@ -26,6 +26,9 @@ function admin_nav_items(): array {
     if (is_admin() && import_export_enabled()) {
         $items[] = ['data', '/admin/import-export.php', 'Import / export'];
     }
+    if (is_admin() && settings_page_enabled()) {
+        $items[] = ['settings', '/admin/settings.php', 'Settings'];
+    }
     return $items;
 }
 
@@ -61,6 +64,7 @@ function admin_header(): void {
     $user = current_user();
     $primary = primary_color();
     $accent = function_exists('accent_color') ? accent_color() : $primary;
+    $dark = function_exists('dark_mode_enabled') && dark_mode_enabled();
     $biz = business_name();
     $tz = $GLOBALS['CONFIG']['business_timezone'] ?? 'UTC';
     $current = $active ?? '';
@@ -77,9 +81,9 @@ function admin_header(): void {
   tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
   </script>
   <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-  <style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;}</style>
+  <style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
 </head>
-<body class="bg-neutral-50 text-neutral-900 h-full overflow-hidden">
+<body class="bg-neutral-50 text-neutral-900 h-full overflow-hidden <?= $dark ? 'theme-dark' : '' ?>">
 <div class="flex h-full overflow-hidden">
   <!-- Mobile backdrop -->
   <div id="sidebarBackdrop" class="fixed inset-0 bg-black/35 z-40 hidden md:hidden"></div>

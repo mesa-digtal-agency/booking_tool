@@ -194,12 +194,27 @@ function accent_color(): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : primary_color();
 }
 
+/** Config booleans may come from JSON booleans or string-ish values. */
+function config_bool(string $key, bool $default = false): bool {
+    $v = $GLOBALS['CONFIG'][$key] ?? $default;
+    if (is_bool($v)) return $v;
+    if (is_string($v)) return !in_array(strtolower(trim($v)), ['0', 'false', 'no', 'off', ''], true);
+    return (bool)$v;
+}
+
+/** Whether the admin UI should render in dark mode. */
+function dark_mode_enabled(): bool {
+    return config_bool('dark_mode', false);
+}
+
 /** Whether the admin Import / export page should be visible and reachable. */
 function import_export_enabled(): bool {
-    $v = $GLOBALS['CONFIG']['show_import_export'] ?? true;
-    if (is_bool($v)) return $v;
-    if (is_string($v)) return !in_array(strtolower(trim($v)), ['0', 'false', 'no', 'off'], true);
-    return (bool)$v;
+    return config_bool('show_import_export', true);
+}
+
+/** Whether the admin Settings page should be visible and reachable. */
+function settings_page_enabled(): bool {
+    return config_bool('show_settings_page', true);
 }
 
 /** '24h' or '12h'. */

@@ -80,6 +80,88 @@ a:hover { transition: color .15s ease; }
 nav.overflow-y-auto::-webkit-scrollbar { width: 6px; }
 nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
 
+/* ---------- Admin dark mode ---------------------------------------- */
+.theme-dark {
+    background: #0f172a;
+    color: #e5e7eb;
+}
+.theme-dark .bg-white,
+.theme-dark .bg-neutral-50 {
+    background-color: #111827;
+}
+.theme-dark .bg-neutral-100 {
+    background-color: #1f2937;
+}
+.theme-dark .bg-slate-200 {
+    background-color: #334155;
+}
+.theme-dark .border-neutral-100,
+.theme-dark .border-neutral-200 {
+    border-color: #263244;
+}
+.theme-dark .text-neutral-900,
+.theme-dark .text-neutral-800,
+.theme-dark .text-neutral-700 {
+    color: #f3f4f6;
+}
+.theme-dark .text-neutral-600,
+.theme-dark .text-neutral-500 {
+    color: #cbd5e1;
+}
+.theme-dark .text-neutral-400 {
+    color: #94a3b8;
+}
+.theme-dark input,
+.theme-dark select,
+.theme-dark textarea {
+    background-color: #0f172a;
+    border-color: #334155;
+    color: #f8fafc;
+}
+.theme-dark input::placeholder,
+.theme-dark textarea::placeholder {
+    color: #64748b;
+}
+.theme-dark input:disabled,
+.theme-dark select:disabled,
+.theme-dark textarea:disabled,
+.theme-dark .disabled\:bg-neutral-100:disabled {
+    background-color: #1e293b;
+    color: #94a3b8;
+}
+.theme-dark .nav-link {
+    color: #cbd5e1;
+}
+.theme-dark .nav-link:hover {
+    background: #1f2937;
+}
+.theme-dark .nav-link.active {
+    background: color-mix(in srgb, var(--primary-color, #7c3aed) 20%, transparent);
+}
+.theme-dark table thead,
+.theme-dark .calendar-sticky-header {
+    background-color: #111827;
+}
+.theme-dark .h-20.border-t,
+.theme-dark .border-t {
+    border-color: #263244;
+}
+.theme-dark .toast,
+.theme-dark .modal {
+    background: #111827;
+    border-color: #334155;
+    color: #f8fafc;
+}
+.theme-dark .toast .toast-close {
+    color: #94a3b8;
+}
+.theme-dark .calendar-scroll::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+.theme-dark .calendar-scroll::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+
 /* ---------- Toast notifications ------------------------------------ */
 #toastRoot {
     position: fixed; top: 16px; right: 16px; z-index: 100;
