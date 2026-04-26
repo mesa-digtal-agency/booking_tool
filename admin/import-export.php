@@ -11,6 +11,10 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/admin-layout.php';
 
 require_admin();
+if (!import_export_enabled()) {
+    http_response_code(404);
+    exit('Import / export is disabled.');
+}
 ensure_migrations();
 $page_title = 'Import / export';
 $active = 'data';

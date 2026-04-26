@@ -53,6 +53,7 @@ function load_config(): array {
         'logo_mode' => 'logo_and_name',
         'app_url' => '',
         'primary_color' => '#7c3aed',
+        'show_import_export' => true,
         'currency_symbol' => '$',
         'default_phone_country_code' => '+1',
         'mail_driver' => 'mail',

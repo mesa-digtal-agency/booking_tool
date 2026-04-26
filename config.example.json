@@ -19,6 +19,7 @@
   "app_url": "https://yourdomain.com",
   "primary_color": "#7c3aed",
   "accent_color": "#7c3aed",
+  "show_import_export": true,
   "currency_symbol": "$",
   "default_phone_country_code": "+1",
 

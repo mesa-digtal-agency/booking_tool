@@ -194,6 +194,14 @@ function accent_color(): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : primary_color();
 }
 
+/** Whether the admin Import / export page should be visible and reachable. */
+function import_export_enabled(): bool {
+    $v = $GLOBALS['CONFIG']['show_import_export'] ?? true;
+    if (is_bool($v)) return $v;
+    if (is_string($v)) return !in_array(strtolower(trim($v)), ['0', 'false', 'no', 'off'], true);
+    return (bool)$v;
+}
+
 /** '24h' or '12h'. */
 function time_format(): string {
     return (string)($GLOBALS['CONFIG']['time_format'] ?? '24h') === '12h' ? '12h' : '24h';

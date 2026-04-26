@@ -23,7 +23,7 @@ function admin_nav_items(): array {
     }
     $items[] = ['hours',   '/admin/staff-hours.php',   'Working hours'];
     $items[] = ['blocked', '/admin/blocked-slots.php', 'Blocked slots'];
-    if (is_admin()) {
+    if (is_admin() && import_export_enabled()) {
         $items[] = ['data', '/admin/import-export.php', 'Import / export'];
     }
     return $items;
