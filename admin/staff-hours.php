@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$off && (!is_valid_time($start) || !is_valid_time($end))) {
                 $errors[] = $day_names[$d] . ': start and end times must be valid.';
             } elseif (!$off && time_to_minutes($end) <= time_to_minutes($start)) {
-                $errors[] = $day_names[$d] . ': end time must be after start time, or use 24 hours.';
+                $errors[] = $day_names[$d] . ': end time must be after start time, or use All day.';
             }
         }
 
@@ -117,7 +117,7 @@ window.addEventListener('DOMContentLoaded', function () {
           <input type="checkbox" name="off_<?= $d ?>" data-off <?= $is_off?'checked':'' ?> <?= $all_week_24h?'disabled':'' ?>> Off
         </label>
         <label class="text-sm inline-flex items-center gap-2">
-          <input type="checkbox" name="all_day_<?= $d ?>" data-all-day <?= ($is_24h || $all_week_24h)?'checked':'' ?> <?= $all_week_24h?'disabled':'' ?>> 24 hours
+          <input type="checkbox" name="all_day_<?= $d ?>" data-all-day <?= ($is_24h || $all_week_24h)?'checked':'' ?> <?= $all_week_24h?'disabled':'' ?>> All day
         </label>
         <input type="time" name="start_<?= $d ?>" value="<?= e($is_24h ? '00:00' : $r['start_time']) ?>" data-start class="px-2 py-1 border border-neutral-200 rounded-md text-sm disabled:bg-neutral-100 disabled:text-neutral-400" <?= $disable_times?'disabled':'' ?>>
         <span class="text-neutral-400">&ndash;</span>
@@ -127,7 +127,7 @@ window.addEventListener('DOMContentLoaded', function () {
   </div>
   <div class="mt-4 flex flex-wrap items-center gap-3">
     <label class="text-sm inline-flex items-center gap-2 mr-auto">
-      <input type="checkbox" name="all_week_24h" id="allWeek24h" <?= $all_week_24h?'checked':'' ?>> 24/7
+      <input type="checkbox" name="all_week_24h" id="allWeek24h" <?= $all_week_24h?'checked':'' ?>> Open 24/7
     </label>
     <button class="px-4 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Save</button>
   </div>

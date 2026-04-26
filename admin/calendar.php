@@ -190,9 +190,9 @@ admin_header();
 <div class="bg-white border border-neutral-200 rounded-xl calendar-scroll" data-initial-scroll-minute="<?= (int)$initial_scroll_minute ?>" style="height: calc(100vh - 210px); min-height: 420px; overflow-x: auto; overflow-y: scroll; overscroll-behavior: contain;">
     <div class="grid min-w-full" style="grid-template-columns: 60px <?= e($day_columns_css) ?>;">
         <!-- Header row -->
-        <div></div>
+        <div class="calendar-sticky-header bg-white"></div>
         <?php foreach ($days as $d): $dt2 = new DateTime($d); ?>
-            <div class="p-2 text-center text-xs text-neutral-500 border-l border-neutral-100">
+            <div class="calendar-sticky-header bg-white p-2 text-center text-xs text-neutral-500 border-l border-neutral-100">
                 <div class="uppercase tracking-wide"><?= $dt2->format('D') ?></div>
                 <div class="text-lg <?= $d === $today ? 'text-primary font-semibold' : 'text-neutral-900' ?>"><?= $dt2->format('j') ?></div>
                 <div class="text-[10px]"><?= $dt2->format('M') ?></div>
