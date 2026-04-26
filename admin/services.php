@@ -83,8 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new = 'service_' . ($editing['id'] ?? 'new') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                 $dest_dir = APP_ROOT . '/assets/services';
                 if (!is_dir($dest_dir)) @mkdir($dest_dir, 0775, true);
-                $dest = $dest_dir . '/' . $new;
-                if (!save_uploaded_image($file, $dest_dir, $new, 512, 512)) {
+                if (!save_uploaded_square_image($file, $dest_dir, $new, 160)) {
                     $errors[] = 'Could not save image.';
                 } else {
                     if (!empty($editing['image'])) {

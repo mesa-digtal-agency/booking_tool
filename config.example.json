@@ -18,6 +18,7 @@
   "logo_mode": "logo_and_name",
   "app_url": "https://yourdomain.com",
   "primary_color": "#7c3aed",
+  "accent_color": "#7c3aed",
   "currency_symbol": "$",
   "default_phone_country_code": "+1",
 

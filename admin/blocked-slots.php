@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $end    = normalize_time(str_in($_POST, 'end_time', 8)) ?? '';
     $reason = str_in($_POST, 'reason', 255);
     $repeat = !empty($_POST['repeat']);
+    $repeat_until_enabled = $repeat && !empty($_POST['repeat_until_enabled']);
     $until  = str_in($_POST, 'until', 10);
 
     if ($staff_id <= 0) $errors[] = 'Staff is required.';
@@ -61,16 +62,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($em <= $sm) $errors[] = 'End time must be after start time.';
         if (!$errors && ($em - $sm) >= 24 * 60) $errors[] = 'A single block cannot span 24 hours or more.';
     }
-    if ($repeat) {
-        if (!is_valid_date($until)) $errors[] = 'Repeat-until date is required when "repeat on working days" is checked.';
+    if ($repeat_until_enabled) {
+        if (!is_valid_date($until)) $errors[] = 'Repeat-until date is required when the repeat end date is enabled.';
         if (!$errors && $until < $date) $errors[] = 'Repeat-until date must be on or after the start date.';
     }
+    if (!$repeat_until_enabled) $until = '';
 
     if (!$errors) {
         db_insert(
             "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason, repeat_until, repeat_mode)
              VALUES (?,?,?,?,?,?,?)",
-            [$staff_id, $date, $start, $end, $reason, $repeat ? $until : null, $repeat ? 'working_day' : null]
+            [$staff_id, $date, $start, $end, $reason, $repeat && $until !== '' ? $until : null, $repeat ? 'working_day' : null]
         );
         flash('ok', $repeat ? 'Recurring blocked slot added.' : 'Blocked slot added.');
         redirect('/admin/blocked-slots.php');
@@ -78,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $cutoff = date('Y-m-d', strtotime('-7 days'));
-$where = "(bs.date >= ? OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND bs.repeat_until >= ?))";
+$where = "(bs.date >= ? OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND (bs.repeat_until IS NULL OR bs.repeat_until >= ?)))";
 $params = [$cutoff, $cutoff];
 if ($scope !== null) {
     $where .= " AND bs.staff_id = ?";
@@ -121,11 +123,17 @@ admin_header();
       <input type="checkbox" name="repeat" id="repeatCheckbox">
       <span>Repeat on every working day <span class="text-neutral-400 text-xs">(stored as one recurring blocker)</span></span>
     </label>
-    <div id="repeatFields" class="hidden">
-      <label class="block max-w-xs">Until
-        <input type="date" name="until" value="<?= e((new DateTimeImmutable(business_today(), business_timezone_obj()))->modify('+60 days')->format('Y-m-d')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+    <div id="repeatFields" class="hidden space-y-2">
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="repeat_until_enabled" id="repeatUntilCheckbox">
+        <span>End repeat on a date</span>
       </label>
-      <p class="text-xs text-neutral-500 mt-1">The recurring blocker applies only on days that aren't marked OFF in the staff member's working hours.</p>
+      <div id="repeatUntilField" class="hidden max-w-xs">
+        <label class="block">Until
+          <input type="date" name="until" id="repeatUntilDate" value="<?= e((new DateTimeImmutable(business_today(), business_timezone_obj()))->modify('+60 days')->format('Y-m-d')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md" disabled>
+        </label>
+      </div>
+      <p class="text-xs text-neutral-500">Without an end date, the recurring blocker repeats forever on days that are not marked off.</p>
     </div>
   </div>
 
@@ -151,8 +159,10 @@ admin_header();
         <td class="px-3 py-2"><input type="checkbox" name="ids[]" value="<?= (int)$r['id'] ?>" class="blockCheckbox" form="bulkDeleteForm"></td>
         <td class="px-3 py-2">
           <?= e($r['date']) ?>
-          <?php if (($r['repeat_mode'] ?? '') === 'working_day' && !empty($r['repeat_until'])): ?>
-            <div class="text-xs text-neutral-500">Repeats on working days until <?= e($r['repeat_until']) ?></div>
+          <?php if (($r['repeat_mode'] ?? '') === 'working_day'): ?>
+            <div class="text-xs text-neutral-500">
+              <?= !empty($r['repeat_until']) ? 'Repeats on working days until ' . e($r['repeat_until']) : 'Repeats on working days forever' ?>
+            </div>
           <?php endif; ?>
         </td>
         <td class="px-3 py-2"><?= e(format_time_display($r['start_time'])) ?> - <?= e(format_time_display($r['end_time'])) ?></td>
@@ -184,9 +194,19 @@ admin_header();
 (function(){
   const cb = document.getElementById('repeatCheckbox');
   const fields = document.getElementById('repeatFields');
+  const untilCb = document.getElementById('repeatUntilCheckbox');
+  const untilField = document.getElementById('repeatUntilField');
+  const untilDate = document.getElementById('repeatUntilDate');
   if (cb && fields) {
-    const toggle = () => { fields.classList.toggle('hidden', !cb.checked); };
+    const toggle = () => {
+      fields.classList.toggle('hidden', !cb.checked);
+      if (!cb.checked && untilCb) untilCb.checked = false;
+      const showUntil = !!(cb.checked && untilCb && untilCb.checked);
+      if (untilField) untilField.classList.toggle('hidden', !showUntil);
+      if (untilDate) untilDate.disabled = !showUntil;
+    };
     cb.addEventListener('change', toggle);
+    if (untilCb) untilCb.addEventListener('change', toggle);
     toggle();
   }
 

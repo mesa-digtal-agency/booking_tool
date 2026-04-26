@@ -159,6 +159,11 @@ function staff_can_take_slot(int $staff_id, string $date, string $start, string 
     $end_min = time_to_minutes($end);
     $wh_start = time_to_minutes($wh['start_time']);
     $wh_end = time_to_minutes($wh['end_time']);
+    if ($wh_end === $wh_start && $wh_start === 0) {
+        $wh_end = 24 * 60;
+    } elseif ($wh_end <= $wh_start) {
+        return false;
+    }
 
     return $start_min >= $wh_start && $end_min <= $wh_end;
 }

@@ -62,7 +62,7 @@ $blocked = db_all(
      FROM blocked_slots bs
      JOIN staff st ON st.id = bs.staff_id
      WHERE (bs.date BETWEEN ? AND ?
-            OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND bs.date <= ? AND bs.repeat_until >= ?))" . ($staff_filter ? " AND bs.staff_id = " . (int)$staff_filter : ""),
+            OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND bs.date <= ? AND (bs.repeat_until IS NULL OR bs.repeat_until >= ?)))" . ($staff_filter ? " AND bs.staff_id = " . (int)$staff_filter : ""),
     [$from, $to, $to, $from]
 );
 
@@ -94,7 +94,11 @@ if ($visible_staff_ids && $visible_dows) {
     foreach ($wh_rows as $wh) {
         $start_min = time_to_minutes($wh['start_time']);
         $end_min = time_to_minutes($wh['end_time']);
-        if ($end_min <= $start_min) continue;
+        if ($end_min === $start_min && $start_min === 0) {
+            $end_min = 24 * 60;
+        } elseif ($end_min <= $start_min) {
+            continue;
+        }
         $hour_start = min($hour_start ?? intdiv($start_min, 60), intdiv($start_min, 60));
         $hour_end = max($hour_end ?? (int)ceil($end_min / 60), (int)ceil($end_min / 60));
     }

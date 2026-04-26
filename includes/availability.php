@@ -81,7 +81,11 @@ function compute_slots_for_staff(int $staff_id, int $service_id, string $date): 
 
     $start_min = time_to_minutes($wh['start_time']);
     $end_min   = time_to_minutes($wh['end_time']);
-    if ($end_min <= $start_min) return [];
+    if ($end_min === $start_min && $start_min === 0) {
+        $end_min = 24 * 60;
+    } elseif ($end_min <= $start_min) {
+        return [];
+    }
 
     $step = (int)($GLOBALS['CONFIG']['slot_interval_minutes'] ?: 30);
     if ($step <= 0) $step = 30;

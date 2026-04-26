@@ -225,7 +225,8 @@ window.addEventListener('DOMContentLoaded', function () {
       reason = 'This staff member is marked OFF on ' + ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow] + '.';
     } else {
       const whStart = toMinutes(wh.start);
-      const whEnd = toMinutes(wh.end);
+      let whEnd = toMinutes(wh.end);
+      if (whEnd === whStart && whStart === 0) whEnd = 24 * 60;
       if (startMin < whStart || endMin > whEnd) {
         reason = 'This booking (' + start + ' – ' + String(Math.floor(endMin/60)).padStart(2,'0') + ':' + String(endMin%60).padStart(2,'0') +
           ') is outside the staff member\'s working hours (' + wh.start + ' – ' + wh.end + ').';

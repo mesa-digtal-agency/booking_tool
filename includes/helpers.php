@@ -188,6 +188,12 @@ function primary_color(): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : '#7c3aed';
 }
 
+/** Accent color for native controls; falls back to primary_color. */
+function accent_color(): string {
+    $c = (string)($GLOBALS['CONFIG']['accent_color'] ?? '');
+    return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : primary_color();
+}
+
 /** '24h' or '12h'. */
 function time_format(): string {
     return (string)($GLOBALS['CONFIG']['time_format'] ?? '24h') === '12h' ? '12h' : '24h';
@@ -203,6 +209,7 @@ function format_time_display(?string $time): string {
     if (!preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $t, $m)) return $t;
     $h = (int)$m[1];
     $i = (int)$m[2];
+    if ($h === 24 && $i === 0) return time_format() === '12h' ? '12:00 AM' : '24:00';
     if (time_format() === '12h') {
         $suffix = $h >= 12 ? 'PM' : 'AM';
         $h12 = $h % 12;
@@ -312,6 +319,80 @@ function save_uploaded_image(array $file, string $dest_dir, string $filename, in
     } elseif ($ext === 'webp' && function_exists('imagewebp')) {
         $ok = imagewebp($dst, $dest, 82);
     } else {
+        $ok = imagejpeg($dst, $dest, 82);
+    }
+
+    imagedestroy($dst);
+    imagedestroy($src);
+    return $ok;
+}
+
+/**
+ * Save an uploaded image as an exact centered square thumbnail.
+ *
+ * Non-square sources are center-cropped to the largest possible square before
+ * resizing. Square sources are resized directly to the target dimensions.
+ */
+function save_uploaded_square_image(array $file, string $dest_dir, string $filename, int $size): bool {
+    if (!is_dir($dest_dir) && !@mkdir($dest_dir, 0775, true) && !is_dir($dest_dir)) {
+        return false;
+    }
+
+    if (!function_exists('imagecreatefromstring') || !function_exists('getimagesize')) {
+        return false;
+    }
+
+    $info = @getimagesize($file['tmp_name']);
+    if (!$info) return false;
+    $bytes = @file_get_contents($file['tmp_name']);
+    if ($bytes === false) return false;
+
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) return false;
+
+    $src_w = max(1, (int)$info[0]);
+    $src_h = max(1, (int)$info[1]);
+    $crop_size = min($src_w, $src_h);
+    $crop_x = intdiv($src_w - $crop_size, 2);
+    $crop_y = intdiv($src_h - $crop_size, 2);
+
+    $dst = imagecreatetruecolor($size, $size);
+    if (!$dst) {
+        imagedestroy($src);
+        return false;
+    }
+
+    $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+    if (in_array($ext, ['png', 'webp'], true)) {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $size, $size, $transparent);
+    } else {
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $size, $size, $white);
+    }
+
+    imagecopyresampled(
+        $dst,
+        $src,
+        0,
+        0,
+        $crop_x,
+        $crop_y,
+        $size,
+        $size,
+        $crop_size,
+        $crop_size
+    );
+
+    $dest = rtrim($dest_dir, '/\\') . DIRECTORY_SEPARATOR . $filename;
+    $ok = false;
+    if ($ext === 'png') {
+        $ok = imagepng($dst, $dest, 6);
+    } elseif ($ext === 'webp' && function_exists('imagewebp')) {
+        $ok = imagewebp($dst, $dest, 82);
+    } elseif ($ext === 'jpg' || $ext === 'jpeg') {
         $ok = imagejpeg($dst, $dest, 82);
     }
 

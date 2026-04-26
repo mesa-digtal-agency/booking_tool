@@ -60,6 +60,7 @@ function admin_header(): void {
 
     $user = current_user();
     $primary = primary_color();
+    $accent = function_exists('accent_color') ? accent_color() : $primary;
     $biz = business_name();
     $tz = $GLOBALS['CONFIG']['business_timezone'] ?? 'UTC';
     $current = $active ?? '';
@@ -76,7 +77,7 @@ function admin_header(): void {
   tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
   </script>
   <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-  <style>:root{--primary-color: <?= e($primary) ?>;}</style>
+  <style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;}</style>
 </head>
 <body class="bg-neutral-50 text-neutral-900 h-full overflow-hidden">
 <div class="flex h-full overflow-hidden">
