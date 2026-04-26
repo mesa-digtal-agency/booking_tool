@@ -158,6 +158,66 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     transform: scale(.96);
 }
 
+/* ---------- Import / export --------------------------------------- */
+.import-file-input,
+.input.import-file-input {
+    display: none;
+}
+.labelFile.import-upload {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 190px;
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    text-align: center;
+    padding: 18px;
+    color: #404040;
+    cursor: pointer;
+    background: #f9fafb;
+}
+.import-upload-icon {
+    color: #6b7280;
+    margin-bottom: 10px;
+}
+.import-upload-icon svg {
+    display: block;
+    width: 54px;
+    height: 54px;
+    fill: currentColor;
+}
+.labelFile.import-upload p {
+    margin: 0;
+    max-width: 240px;
+    font-size: 13px;
+    line-height: 1.35;
+    font-weight: 600;
+}
+.import-file-name {
+    display: block;
+    margin-top: 10px;
+    max-width: 100%;
+    font-size: 12px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.labelFile.import-upload:hover,
+.labelFile.import-upload:focus-within,
+.labelFile.import-upload.is-dragging,
+.labelFile.import-upload.has-file {
+    border-color: var(--accent-color, var(--primary-color, #7c3aed));
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 8%, #ffffff);
+}
+.labelFile.import-upload:hover .import-upload-icon,
+.labelFile.import-upload.is-dragging .import-upload-icon,
+.labelFile.import-upload.has-file .import-upload-icon {
+    color: var(--accent-color, var(--primary-color, #7c3aed));
+}
+
 /* ---------- Admin loading overlay --------------------------------- */
 .admin-loading-overlay {
     position: absolute;
@@ -484,6 +544,27 @@ body.theme-dark label {
 }
 .theme-dark .admin-loading-overlay {
     background: rgba(11, 16, 32, 0.78);
+}
+.theme-dark .labelFile.import-upload {
+    background: var(--dark-field);
+    border-color: var(--dark-border);
+    color: var(--dark-text);
+}
+.theme-dark .import-upload-icon,
+.theme-dark .import-file-name {
+    color: var(--dark-muted);
+}
+.theme-dark .labelFile.import-upload:hover,
+.theme-dark .labelFile.import-upload:focus-within,
+.theme-dark .labelFile.import-upload.is-dragging,
+.theme-dark .labelFile.import-upload.has-file {
+    border-color: var(--accent-color, var(--primary-color, #7c3aed));
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 18%, var(--dark-field));
+}
+.theme-dark .labelFile.import-upload:hover .import-upload-icon,
+.theme-dark .labelFile.import-upload.is-dragging .import-upload-icon,
+.theme-dark .labelFile.import-upload.has-file .import-upload-icon {
+    color: var(--accent-color, var(--primary-color, #7c3aed));
 }
 .theme-dark input:focus,
 .theme-dark select:focus,

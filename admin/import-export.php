@@ -2,10 +2,8 @@
 /**
  * CSV import / export for services, staff, and bookings.
  *
- * Each entity has its own export link and upload form. Imports are
- * upserts (update existing row when a natural key matches — email for
- * staff, name for services, id for bookings), and skip rows with
- * validation errors rather than aborting the whole file.
+ * Imports are upserts. Matching rows update existing records; the rest
+ * are inserted. Rows with validation issues are skipped.
  */
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/admin-layout.php';
@@ -67,7 +65,9 @@ if ($export === 'bookings') {
 // ---------------------------------------------------------------------
 $import_result = null;
 $new_staff_reset_links = $_SESSION['import_staff_reset_links'] ?? [];
-unset($_SESSION['import_staff_reset_links']);
+$recent_import_errors = $_SESSION['import_errors'] ?? [];
+$recent_import_error_count = (int)($_SESSION['import_error_count'] ?? 0);
+unset($_SESSION['import_staff_reset_links'], $_SESSION['import_errors'], $_SESSION['import_error_count']);
 
 function read_upload_csv(string $field): ?array {
     if (empty($_FILES[$field]['name'])) return null;
@@ -77,12 +77,11 @@ function read_upload_csv(string $field): ?array {
     if (!$fp) return null;
     $header = fgetcsv($fp);
     if (!$header) { fclose($fp); return ['header' => [], 'rows' => []]; }
-    // Normalize column names (lowercase, underscores).
     $header = array_map(fn($h) => strtolower(trim((string)$h)), $header);
     $rows = [];
     while (($r = fgetcsv($fp)) !== false) {
         if (count($r) === 1 && trim($r[0]) === '') continue;
-        $rows[] = array_combine($header, array_pad($r, count($header), ''));
+        $rows[] = array_combine($header, array_slice(array_pad($r, count($header), ''), 0, count($header)));
     }
     fclose($fp);
     return ['header' => $header, 'rows' => $rows];
@@ -92,6 +91,8 @@ function flash_import_result(array $result): void {
     $msg = "Imported: {$result['inserted']} new, {$result['updated']} updated";
     if (!empty($result['errors'])) {
         $msg .= '. Skipped ' . count($result['errors']) . ' row(s) with errors.';
+        $_SESSION['import_errors'] = array_slice($result['errors'], 0, 8);
+        $_SESSION['import_error_count'] = count($result['errors']);
     }
     flash(empty($result['errors']) ? 'ok' : 'warn', $msg);
 }
@@ -107,7 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('/admin/import-export.php');
         }
         $inserted = 0; $updated = 0; $errors = [];
-        $reset_links = [];
         foreach ($csv['rows'] as $i => $r) {
             $name = trim((string)($r['name'] ?? ''));
             if ($name === '') { $errors[] = "row " . ($i + 2) . ": missing name"; continue; }
@@ -122,7 +122,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (int)(!empty($r['is_active']) && $r['is_active'] !== '0' ? 1 : 0),
                 trim((string)($r['image'] ?? '')) ?: null,
             ];
-            // Upsert by name (case-insensitive).
             $existing = db_fetch("SELECT id FROM services WHERE LOWER(name) = LOWER(?)", [$name]);
             if ($existing) {
                 db_exec("UPDATE services SET name=?, description=?, category=?, duration_minutes=?, price=?, is_active=?, image=? WHERE id=?",
@@ -141,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $csv = read_upload_csv('file');
         if (!$csv) { flash('error', 'Could not read the uploaded file.'); redirect('/admin/import-export.php'); }
         $inserted = 0; $updated = 0; $errors = [];
+        $reset_links = [];
         foreach ($csv['rows'] as $i => $r) {
             $email = strtolower(trim((string)($r['email'] ?? '')));
             $name  = trim((string)($r['name'] ?? ''));
@@ -153,7 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $is_active = (int)(!empty($r['is_active']) && $r['is_active'] !== '0' ? 1 : 0);
             $existing = db_fetch("SELECT id FROM staff WHERE email = ?", [$email]);
             if ($existing) {
-                // Can't demote/deactivate the last active admin via import either.
                 if (is_last_active_admin((int)$existing['id']) && ($role !== 'admin' || $is_active === 0)) {
                     $errors[] = "row " . ($i + 2) . ": refused to demote/deactivate the only active admin ($email)";
                     continue;
@@ -162,12 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     [$name, $phone, $role, $is_active, (int)$existing['id']]);
                 $updated++;
             } else {
-                // New staff needs a password. Generate a random one — the admin
-                // should hand them the password-reset flow afterwards.
                 $tmp_pwd = bin2hex(random_bytes(8));
                 db_insert("INSERT INTO staff (name, email, phone, role, password_hash, is_active) VALUES (?,?,?,?,?,?)",
                     [$name, $email, $phone, $role, password_hash($tmp_pwd, PASSWORD_DEFAULT), $is_active]);
-                // Seed default working hours for the new user.
                 $nid = (int)db()->lastInsertId();
                 for ($dow = 0; $dow <= 6; $dow++) {
                     $off = ($dow === 0 || $dow === 6) ? 1 : 0;
@@ -195,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$csv) { flash('error', 'Could not read the uploaded file.'); redirect('/admin/import-export.php'); }
         $inserted = 0; $updated = 0; $errors = [];
 
-        // Build name → id maps once.
         $svc_map = []; foreach (db_all("SELECT id, name FROM services") as $s) $svc_map[strtolower($s['name'])] = (int)$s['id'];
         $staff_map = []; foreach (db_all("SELECT id, name FROM staff") as $s) $staff_map[strtolower($s['name'])] = (int)$s['id'];
 
@@ -219,7 +214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($name === '')                  { $errors[] = "row " . ($i + 2) . ": missing customer_name"; continue; }
 
             $token = uuid_v4();
-
             $id = (int)($r['id'] ?? 0);
             $existing_booking = $id > 0 ? db_fetch("SELECT status FROM bookings WHERE id = ?", [$id]) : null;
             if ($existing_booking) {
@@ -249,54 +243,192 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$import_cards = [
+    [
+        'kind' => 'services',
+        'title' => 'Services',
+        'summary' => 'Update service names, duration, pricing, categories, visibility, and images.',
+        'key' => 'Matched by service name',
+        'required' => ['name', 'duration_minutes'],
+        'optional' => ['description', 'category', 'price', 'is_active', 'image'],
+    ],
+    [
+        'kind' => 'staff',
+        'title' => 'Staff',
+        'summary' => 'Add or update staff profiles. Newly inserted staff receive reset links after import.',
+        'key' => 'Matched by email',
+        'required' => ['name', 'email'],
+        'optional' => ['phone', 'role', 'is_active'],
+    ],
+    [
+        'kind' => 'bookings',
+        'title' => 'Bookings',
+        'summary' => 'Move appointment history and notes between installs. Unknown service or staff names are skipped.',
+        'key' => 'Matched by id when present',
+        'required' => ['service_name', 'staff_name', 'booking_date', 'start_time', 'end_time', 'customer_name'],
+        'optional' => ['id', 'status', 'customer_email', 'customer_phone', 'notes'],
+    ],
+];
+
 admin_header();
 ?>
 <?= flash_render() ?>
-<h1 class="text-2xl font-semibold mb-4">Import / export</h1>
-<p class="text-sm text-neutral-500 mb-6">Back up your data or move it between installs. Imports are upserts: rows with a matching natural key (service name, staff email, booking id) update the existing row; the rest are inserted.</p>
+<div class="max-w-6xl space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Import / export</h1>
+    <p class="mt-1 text-sm text-neutral-500 max-w-2xl">Back up your data or move it between installs. Imports update matching rows and insert new rows; rows with validation issues are skipped.</p>
+  </div>
 
-<?php if ($new_staff_reset_links): ?>
-  <div class="bg-white border border-neutral-200 rounded-xl p-4 mb-6">
-    <div class="font-semibold mb-2">New staff reset links</div>
-    <p class="text-sm text-neutral-500 mb-3">Staff imported in the last CSV upload were created with password-reset links. Send each person their link instead of trying to share a generated password.</p>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="text-left text-neutral-500 text-xs uppercase">
-          <tr><th class="py-2 pr-3">Name</th><th class="py-2 pr-3">Email</th><th class="py-2">Reset link</th></tr>
-        </thead>
-        <tbody>
-        <?php foreach ($new_staff_reset_links as $row): ?>
-          <tr class="border-t border-neutral-100">
-            <td class="py-2 pr-3"><?= e($row['name']) ?></td>
-            <td class="py-2 pr-3"><?= e($row['email']) ?></td>
-            <td class="py-2 break-all"><a class="text-primary hover:underline" href="<?= e($row['reset_url']) ?>"><?= e($row['reset_url']) ?></a></td>
-          </tr>
-        <?php endforeach; ?>
-        </tbody>
-      </table>
+  <div class="bg-white border border-neutral-200 rounded-xl p-4">
+    <div class="font-semibold mb-2">Import behavior</div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+      <div class="border-l-2 border-neutral-200 pl-3">
+        <div class="text-xs font-semibold uppercase text-neutral-500">Update</div>
+        <div class="mt-1">Matching CSV rows update existing records.</div>
+      </div>
+      <div class="border-l-2 border-neutral-200 pl-3">
+        <div class="text-xs font-semibold uppercase text-neutral-500">Insert</div>
+        <div class="mt-1">Rows without a match are created as new records.</div>
+      </div>
+      <div class="border-l-2 border-neutral-200 pl-3">
+        <div class="text-xs font-semibold uppercase text-neutral-500">Validate</div>
+        <div class="mt-1">Problem rows are skipped without stopping the file.</div>
+      </div>
+      <div class="border-l-2 border-neutral-200 pl-3">
+        <div class="text-xs font-semibold uppercase text-neutral-500">Constraints</div>
+        <div class="mt-1">CSV files only, 5 MB max, case-insensitive column names.</div>
+      </div>
     </div>
   </div>
-<?php endif; ?>
 
-<div class="grid md:grid-cols-3 gap-4">
-  <?php foreach ([
-    ['services', 'Services', 'Upsert by service name. Required columns: <code>name</code>, <code>duration_minutes</code>. Optional: description, category, price, is_active, image.'],
-    ['staff',    'Staff',    'Upsert by email. Required: <code>name</code>, <code>email</code>. Optional: phone, role (admin/staff), is_active. New staff get a password-reset link after import so you can send them access immediately.'],
-    ['bookings', 'Bookings', 'Upsert by id (when present), else insert. Required: <code>service_name</code>, <code>staff_name</code>, <code>booking_date</code>, <code>start_time</code>, <code>end_time</code>, <code>customer_name</code>. Unknown service/staff names are rejected.'],
-  ] as [$kind, $title, $desc]): ?>
-    <div class="bg-white border border-neutral-200 rounded-xl p-4 flex flex-col h-full">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-semibold"><?= e($title) ?></h2>
-        <a class="text-xs text-primary hover:underline" href="?export=<?= e($kind) ?>">Export CSV ↓</a>
-      </div>
-      <p class="text-xs text-neutral-500 mb-3 leading-snug"><?= $desc ?></p>
-      <form method="post" enctype="multipart/form-data" class="mt-auto space-y-2">
-        <?= csrf_field() ?>
-        <input type="hidden" name="import_kind" value="<?= e($kind) ?>">
-        <input type="file" name="file" accept=".csv,text/csv" required class="w-full text-sm">
-        <button class="w-full px-3 py-1.5 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Import <?= e($title) ?> CSV</button>
-      </form>
+  <?php if ($recent_import_errors): ?>
+    <div class="bg-amber-100 border border-amber-200 rounded-xl p-4">
+      <div class="font-semibold text-amber-700">Skipped rows from the last import</div>
+      <p class="text-sm text-amber-700 mt-1">Showing <?= count($recent_import_errors) ?> of <?= $recent_import_error_count ?> issue(s).</p>
+      <ul class="mt-3 space-y-1 text-sm text-amber-700">
+        <?php foreach ($recent_import_errors as $er): ?>
+          <li><?= e($er) ?></li>
+        <?php endforeach; ?>
+      </ul>
     </div>
-  <?php endforeach; ?>
+  <?php endif; ?>
+
+  <?php if ($new_staff_reset_links): ?>
+    <div class="bg-white border border-neutral-200 rounded-xl p-4">
+      <div class="font-semibold mb-2">New staff reset links</div>
+      <p class="text-sm text-neutral-500 mb-3">Staff imported in the last CSV upload were created with password-reset links. Send each person their link instead of trying to share a generated password.</p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-left text-neutral-500 text-xs uppercase">
+            <tr><th class="py-2 pr-3">Name</th><th class="py-2 pr-3">Email</th><th class="py-2">Reset link</th></tr>
+          </thead>
+          <tbody>
+          <?php foreach ($new_staff_reset_links as $row): ?>
+            <tr class="border-t border-neutral-100">
+              <td class="py-2 pr-3"><?= e($row['name']) ?></td>
+              <td class="py-2 pr-3"><?= e($row['email']) ?></td>
+              <td class="py-2 break-all"><a class="text-primary hover:underline" href="<?= e($row['reset_url']) ?>"><?= e($row['reset_url']) ?></a></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <div class="grid xl:grid-cols-3 md:grid-cols-2 gap-4">
+    <?php foreach ($import_cards as $card): ?>
+      <div class="bg-white border border-neutral-200 rounded-xl p-4 flex flex-col h-full">
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h2 class="font-semibold text-lg"><?= e($card['title']) ?></h2>
+            <p class="text-xs text-neutral-500 mt-1"><?= e($card['key']) ?></p>
+          </div>
+          <a class="shrink-0 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs hover:bg-neutral-50" href="?export=<?= e($card['kind']) ?>" data-no-loader="true">Export CSV</a>
+        </div>
+        <p class="text-sm text-neutral-600 leading-snug mb-4"><?= e($card['summary']) ?></p>
+
+        <div class="space-y-3 mb-4">
+          <div>
+            <div class="text-xs font-semibold uppercase text-neutral-500 mb-1">Required columns</div>
+            <div class="flex flex-wrap gap-1.5">
+              <?php foreach ($card['required'] as $col): ?>
+                <code class="rounded-md bg-neutral-100 px-2 py-1 text-xs"><?= e($col) ?></code>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold uppercase text-neutral-500 mb-1">Optional columns</div>
+            <div class="flex flex-wrap gap-1.5">
+              <?php foreach ($card['optional'] as $col): ?>
+                <code class="rounded-md bg-neutral-100 px-2 py-1 text-xs"><?= e($col) ?></code>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="mt-auto space-y-3" data-import-form>
+          <?= csrf_field() ?>
+          <input type="hidden" name="import_kind" value="<?= e($card['kind']) ?>">
+          <input id="importFile<?= e(ucfirst($card['kind'])) ?>" type="file" name="file" accept=".csv,text/csv" required class="input import-file-input" data-import-file>
+          <label for="importFile<?= e(ucfirst($card['kind'])) ?>" class="labelFile import-upload" data-import-dropzone>
+            <span class="import-upload-icon" aria-hidden="true">
+              <svg viewBox="0 0 184.69 184.69" xmlns="http://www.w3.org/2000/svg" width="60" height="60">
+                <path d="M149.968,50.186c-8.017-14.308-23.796-22.515-40.717-19.813C102.609,16.43,88.713,7.576,73.087,7.576c-22.117,0-40.112,17.994-40.112,40.115c0,0.913,0.036,1.854,0.118,2.834C14.004,54.875,0,72.11,0,91.959c0,23.456,19.082,42.535,42.538,42.535h33.623v-7.025H42.538c-19.583,0-35.509-15.929-35.509-35.509c0-17.526,13.084-32.621,30.442-35.105c0.931-0.132,1.768-0.633,2.326-1.392c0.555-0.755,0.795-1.704,0.644-2.63c-0.297-1.904-0.447-3.582-0.447-5.139c0-18.249,14.852-33.094,33.094-33.094c13.703,0,25.789,8.26,30.803,21.04c0.63,1.621,2.351,2.534,4.058,2.14c15.425-3.568,29.919,3.883,36.604,17.168c0.508,1.027,1.503,1.736,2.641,1.897c17.368,2.473,30.481,17.569,30.481,35.112c0,19.58-15.937,35.509-35.52,35.509H97.391v7.025h44.761c23.459,0,42.538-19.079,42.538-42.535C184.69,71.545,169.884,53.901,149.968,50.186z"/>
+                <path d="M108.586,90.201c1.406-1.403,1.406-3.672,0-5.075L88.541,65.078c-0.701-0.698-1.614-1.045-2.534-1.045l-0.064,0.011c-0.018,0-0.036-0.011-0.054-0.011c-0.931,0-1.85,0.361-2.534,1.045L63.31,85.127c-1.403,1.403-1.403,3.672,0,5.075c1.403,1.406,3.672,1.406,5.075,0L82.296,76.29v97.227c0,1.99,1.603,3.597,3.593,3.597c1.979,0,3.59-1.607,3.59-3.597V76.165l14.033,14.036C104.91,91.608,107.183,91.608,108.586,90.201z"/>
+              </svg>
+            </span>
+            <p>Drag and drop your CSV here or click to select a file.</p>
+            <span class="import-file-name" data-file-name>No file selected</span>
+          </label>
+          <button class="w-full px-3 py-2 rounded-lg text-white text-sm disabled:opacity-45 disabled:cursor-not-allowed" style="background: <?= e(primary_color()) ?>">Import <?= e($card['title']) ?></button>
+        </form>
+      </div>
+    <?php endforeach; ?>
+  </div>
 </div>
+<script>
+(function(){
+  document.querySelectorAll('[data-import-form]').forEach(function(form) {
+    const file = form.querySelector('[data-import-file]');
+    const name = form.querySelector('[data-file-name]');
+    const button = form.querySelector('button');
+    const dropzone = form.querySelector('[data-import-dropzone]');
+    if (!file || !name || !button || !dropzone) return;
+    button.disabled = true;
+
+    function syncFileName() {
+      const selected = file.files && file.files.length ? file.files[0].name : '';
+      name.textContent = selected || 'No file selected';
+      button.disabled = !selected;
+      dropzone.classList.toggle('has-file', !!selected);
+    }
+
+    file.addEventListener('change', syncFileName);
+    ['dragenter', 'dragover'].forEach(function(eventName) {
+      dropzone.addEventListener(eventName, function(event) {
+        event.preventDefault();
+        dropzone.classList.add('is-dragging');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function(eventName) {
+      dropzone.addEventListener(eventName, function(event) {
+        event.preventDefault();
+        dropzone.classList.remove('is-dragging');
+      });
+    });
+    dropzone.addEventListener('drop', function(event) {
+      const dropped = event.dataTransfer && event.dataTransfer.files;
+      if (!dropped || !dropped.length) return;
+      try {
+        file.files = dropped;
+      } catch (error) {
+        window.toast && window.toast('Click the upload box to choose the CSV file.', { type: 'warn' });
+        return;
+      }
+      syncFileName();
+    });
+  });
+})();
+</script>
 <?php admin_footer(); ?>
