@@ -275,13 +275,13 @@ admin_header();
     ['staff',    'Staff',    'Upsert by email. Required: <code>name</code>, <code>email</code>. Optional: phone, role (admin/staff), is_active. New staff get a password-reset link after import so you can send them access immediately.'],
     ['bookings', 'Bookings', 'Upsert by id (when present), else insert. Required: <code>service_name</code>, <code>staff_name</code>, <code>booking_date</code>, <code>start_time</code>, <code>end_time</code>, <code>customer_name</code>. Unknown service/staff names are rejected.'],
   ] as [$kind, $title, $desc]): ?>
-    <div class="bg-white border border-neutral-200 rounded-xl p-4">
+    <div class="bg-white border border-neutral-200 rounded-xl p-4 flex flex-col h-full">
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-semibold"><?= e($title) ?></h2>
         <a class="text-xs text-primary hover:underline" href="?export=<?= e($kind) ?>">Export CSV ↓</a>
       </div>
       <p class="text-xs text-neutral-500 mb-3 leading-snug"><?= $desc ?></p>
-      <form method="post" enctype="multipart/form-data" class="space-y-2">
+      <form method="post" enctype="multipart/form-data" class="mt-auto space-y-2">
         <?= csrf_field() ?>
         <input type="hidden" name="import_kind" value="<?= e($kind) ?>">
         <input type="file" name="file" accept=".csv,text/csv" required class="w-full text-sm">
