@@ -11,12 +11,13 @@ $active = 'dashboard';
 $scope = scope_staff_id();
 $scope_where = $scope ? " AND staff_id = " . (int)$scope : "";
 
-$today = date('Y-m-d');
-$monday = date('Y-m-d', strtotime('monday this week'));
-$sunday = date('Y-m-d', strtotime('sunday this week'));
-if ($sunday < $monday) $sunday = date('Y-m-d', strtotime('sunday +1 week'));
-$month_start = date('Y-m-01');
-$month_end   = date('Y-m-t');
+$today_dt = new DateTimeImmutable(business_today(), business_timezone_obj());
+$today = $today_dt->format('Y-m-d');
+$monday = $today_dt->modify('monday this week')->format('Y-m-d');
+$sunday = $today_dt->modify('sunday this week')->format('Y-m-d');
+if ($sunday < $monday) $sunday = $today_dt->modify('sunday next week')->format('Y-m-d');
+$month_start = $today_dt->modify('first day of this month')->format('Y-m-d');
+$month_end   = $today_dt->modify('last day of this month')->format('Y-m-d');
 
 function stat_counts(string $from, string $to, string $scope_where): array {
     $rows = db_fetch(
@@ -78,7 +79,7 @@ $status_rows = db_all(
      GROUP BY status",
     [$month_start, $month_end]
 );
-$status_map = ['confirmed'=>0,'pending'=>0,'cancelled'=>0,'completed'=>0];
+$status_map = ['confirmed'=>0,'pending'=>0,'cancelled'=>0,'completed'=>0,'no_show'=>0];
 foreach ($status_rows as $r) $status_map[$r['status']] = (int)$r['cnt'];
 
 // Staff performance (this month) — admin only.
@@ -110,7 +111,7 @@ admin_header();
         <div class="text-xl font-semibold"><?= $stats[$k]['count'] ?></div>
         <div class="text-[11px] text-neutral-500">bookings</div>
       </div>
-      <div class="text-xs text-neutral-600 mt-0.5">$<?= format_money($stats[$k]['revenue']) ?> <span class="text-neutral-400">revenue</span></div>
+      <div class="text-xs text-neutral-600 mt-0.5"><?= e(money_with_currency($stats[$k]['revenue'])) ?> <span class="text-neutral-400">revenue</span></div>
     </div>
   <?php endforeach; ?>
 </div>
@@ -180,7 +181,7 @@ admin_header();
             <tr class="border-t border-neutral-100">
               <td class="py-1.5 truncate max-w-[110px]"><?= e($p['name']) ?></td>
               <td class="py-1.5"><?= (int)$p['cnt'] ?></td>
-              <td class="py-1.5 text-right">$<?= format_money((float)$p['revenue']) ?></td>
+              <td class="py-1.5 text-right"><?= e(money_with_currency((float)$p['revenue'])) ?></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -216,10 +217,10 @@ new Chart(document.getElementById('hoursChart'), {
 new Chart(document.getElementById('statusChart'), {
   type: 'doughnut',
   data: {
-    labels: ['Confirmed','Pending','Cancelled','Completed'],
+    labels: ['Confirmed','Pending','Cancelled','Completed','No-show'],
     datasets: [{
-      data: [<?= $status_map['confirmed'] ?>, <?= $status_map['pending'] ?>, <?= $status_map['cancelled'] ?>, <?= $status_map['completed'] ?>],
-      backgroundColor: ['#10b981','#f59e0b','#ef4444','#6b7280'],
+      data: [<?= $status_map['confirmed'] ?>, <?= $status_map['pending'] ?>, <?= $status_map['cancelled'] ?>, <?= $status_map['completed'] ?>, <?= $status_map['no_show'] ?>],
+      backgroundColor: ['#10b981','#f59e0b','#ef4444','#6b7280','#64748b'],
       borderWidth: 0
     }]
   },

@@ -53,6 +53,8 @@ function load_config(): array {
         'logo_mode' => 'logo_and_name',
         'app_url' => '',
         'primary_color' => '#7c3aed',
+        'currency_symbol' => '$',
+        'default_phone_country_code' => '+1',
         'mail_driver' => 'mail',
         'smtp_host' => '',
         'smtp_port' => 587,
@@ -120,6 +122,12 @@ function ensure_migrations(): void {
         // services.image — added in v1.x; upgrade older installs.
         if (!column_exists('services', 'image')) {
             $pdo->exec("ALTER TABLE services ADD COLUMN image VARCHAR(255)");
+        }
+        if (!column_exists('blocked_slots', 'repeat_until')) {
+            $pdo->exec("ALTER TABLE blocked_slots ADD COLUMN repeat_until VARCHAR(10)");
+        }
+        if (!column_exists('blocked_slots', 'repeat_mode')) {
+            $pdo->exec("ALTER TABLE blocked_slots ADD COLUMN repeat_mode VARCHAR(20)");
         }
 
         $ran = true;

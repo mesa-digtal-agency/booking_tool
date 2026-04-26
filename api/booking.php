@@ -23,9 +23,9 @@ if (!$b) json_error('Booking not found.', 404);
 // Can reschedule only if booking is confirmed/pending AND is more than 24h away.
 $can_reschedule = false;
 if (in_array($b['status'], ['confirmed', 'pending'], true)) {
-    $dt = DateTime::createFromFormat('Y-m-d H:i', $b['booking_date'] . ' ' . $b['start_time']);
+    $dt = DateTime::createFromFormat('Y-m-d H:i', $b['booking_date'] . ' ' . $b['start_time'], business_timezone_obj());
     if ($dt) {
-        $secs = $dt->getTimestamp() - time();
+        $secs = $dt->getTimestamp() - business_now()->getTimestamp();
         $can_reschedule = $secs >= 24 * 3600;
     }
 }

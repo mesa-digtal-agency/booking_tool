@@ -18,7 +18,10 @@ $logo    = logo_url();
     <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
     <style>:root{--primary-color: <?= e($primary) ?>;}</style>
 </head>
-<body class="min-h-screen bg-neutral-50 text-neutral-900" data-time-format="<?= e(time_format()) ?>">
+<body class="min-h-screen bg-neutral-50 text-neutral-900"
+      data-time-format="<?= e(time_format()) ?>"
+      data-currency-symbol="<?= e(currency_symbol()) ?>"
+      data-business-today="<?= e(business_today()) ?>">
 <div id="toastRoot"></div>
 
 <header class="bg-white border-b border-neutral-200 sticky top-0 z-30">
@@ -89,7 +92,7 @@ $logo    = logo_url();
             <div class="grid md:grid-cols-2 gap-3">
                 <label class="block">
                     <span class="text-sm text-neutral-600">Phone *</span>
-                    <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="+1"></div>
+                    <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="<?= e(default_phone_country_code()) ?>"></div>
                 </label>
                 <label class="block">
                     <span class="text-sm text-neutral-600">Email *</span>

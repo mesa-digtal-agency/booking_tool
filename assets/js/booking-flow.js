@@ -5,6 +5,8 @@
   'use strict';
 
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  const CURRENCY_SYMBOL = document.body.dataset.currencySymbol || '$';
+  const BUSINESS_TODAY = document.body.dataset.businessToday || '';
 
   const state = {
     step: 1,
@@ -50,7 +52,7 @@
     return String(m[1]).padStart(2, '0') + ':' + i;
   }
   function fmtMoney(n) {
-    return '$' + Number(n).toFixed(2);
+    return CURRENCY_SYMBOL + Number(n).toFixed(2);
   }
   function fmtMinutes(m) {
     const h = Math.floor(m / 60); const mm = m % 60;
@@ -63,6 +65,7 @@
     return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   }
   function todayISO() {
+    if (BUSINESS_TODAY) return BUSINESS_TODAY;
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -121,7 +124,7 @@
       services.forEach(s => { (groups[s.category || 'Services'] = groups[s.category || 'Services'] || []).push(s); });
       Object.keys(groups).forEach(cat => {
         const h = document.createElement('h3');
-        h.className = 'text-xs uppercase tracking-wide text-neutral-400 mt-4 mb-1';
+        h.className = 'text-lg font-semibold text-neutral-800 mt-6 mb-2';
         h.textContent = cat;
         el.appendChild(h);
         groups[cat].forEach(s => {

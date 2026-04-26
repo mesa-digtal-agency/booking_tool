@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'start_time'     => normalize_time(str_in($_POST, 'start_time', 8)) ?? '',
         'status'         => (string)($_POST['status'] ?? 'pending'),
     ];
-    if (!in_array($data['status'], ['pending','confirmed','cancelled','completed'], true)) $data['status'] = 'pending';
+    if (!in_array($data['status'], booking_all_statuses(), true)) $data['status'] = 'pending';
+    if ($scope !== null) $data['staff_id'] = (int)$scope;
 
     // Validation — email is optional here in the admin form (staff often
     // book walk-ins by phone). The public /api/bookings.php endpoint still
@@ -64,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         $end = compute_end_time($data['start_time'], (int)$svc['duration_minutes']);
-        // Conflict check (skip the row we're editing and skip cancelled status).
-        if ($data['status'] !== 'cancelled') {
+        // Only active bookings should reserve time.
+        if (in_array($data['status'], booking_active_statuses(), true)) {
             if (has_booking_conflict((int)$data['staff_id'], $data['booking_date'], $data['start_time'], $end, (int)($booking['id'] ?? 0))) {
                 $errors[] = 'That time conflicts with another booking for the same staff member.';
             }
@@ -150,21 +151,21 @@ window.addEventListener('DOMContentLoaded', function () {
       <input name="customer_email" type="email" value="<?= e($booking['customer_email'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
     </label>
     <label class="block text-sm">Phone
-      <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="+1"
+      <div class="mt-1" data-phone-input data-name="customer_phone" data-required data-default-cc="<?= e(default_phone_country_code()) ?>"
            data-value="<?= e($booking['customer_phone'] ?? '') ?>"></div>
     </label>
     <label class="block text-sm">Status
       <select name="status" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
-        <?php foreach (['pending','confirmed','cancelled','completed'] as $s): ?>
+        <?php foreach (booking_all_statuses() as $s): ?>
           <option <?= ($booking['status'] ?? 'pending')===$s?'selected':'' ?>><?= $s ?></option>
         <?php endforeach; ?>
       </select>
     </label>
     <label class="block text-sm">Service
       <select name="service_id" required class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
-        <option value="">—</option>
+        <option value="">-</option>
         <?php foreach ($services as $s): ?>
-          <option value="<?= (int)$s['id'] ?>" <?= ($booking['service_id'] ?? 0)==(int)$s['id']?'selected':'' ?>><?= e($s['name']) ?> (<?= (int)$s['duration_minutes'] ?>m · $<?= format_money($s['price']) ?>)</option>
+          <option value="<?= (int)$s['id'] ?>" <?= ($booking['service_id'] ?? 0)==(int)$s['id']?'selected':'' ?>><?= e($s['name']) ?> (<?= (int)$s['duration_minutes'] ?>m / <?= e(money_with_currency($s['price'])) ?>)</option>
         <?php endforeach; ?>
       </select>
     </label>
@@ -176,7 +177,7 @@ window.addEventListener('DOMContentLoaded', function () {
       </select>
     </label>
     <label class="block text-sm">Date
-      <input name="booking_date" type="date" required value="<?= e($booking['booking_date'] ?? date('Y-m-d')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+      <input name="booking_date" type="date" required value="<?= e($booking['booking_date'] ?? business_today()) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
     </label>
     <label class="block text-sm">Start time
       <input name="start_time" type="time" required value="<?= e($booking['start_time'] ?? '10:00') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">

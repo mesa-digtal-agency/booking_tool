@@ -33,8 +33,8 @@ $service = get_service($service_id);
 if (!$service) json_error('Service not found.', 404);
 
 // Do not allow bookings in the past (business timezone).
-$dt_start = DateTime::createFromFormat('Y-m-d H:i', $date . ' ' . $time);
-if (!$dt_start || $dt_start->getTimestamp() <= time()) {
+$dt_start = DateTime::createFromFormat('Y-m-d H:i', $date . ' ' . $time, business_timezone_obj());
+if (!$dt_start || $dt_start->getTimestamp() <= business_now()->getTimestamp()) {
     json_error('Selected time is in the past.', 422);
 }
 
@@ -87,14 +87,7 @@ try {
         json_error('That time is no longer available.', 409);
     }
 
-    $blocked = db_scalar(
-        "SELECT 1 FROM blocked_slots
-         WHERE staff_id = ? AND date = ?
-         AND NOT (end_time <= ? OR start_time >= ?)
-         LIMIT 1" . $lock,
-        [$staff_id, $date, $time, $end_time]
-    );
-    if ($blocked) {
+    if (has_blocked_overlap($staff_id, $date, $time, $end_time, $lock)) {
         db_rollback();
         json_error('That time is blocked off and cannot be booked.', 409);
     }

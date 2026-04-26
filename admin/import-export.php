@@ -11,6 +11,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/admin-layout.php';
 
 require_admin();
+ensure_migrations();
 $page_title = 'Import / export';
 $active = 'data';
 
@@ -46,21 +47,23 @@ if ($export === 'bookings') {
         "SELECT b.id, b.booking_date, b.start_time, b.end_time, b.status,
                 b.customer_name, b.customer_email, b.customer_phone, b.notes,
                 s.name AS service_name, st.name AS staff_name,
-                s.price, b.management_token, b.created_at
+                s.price, b.created_at
          FROM bookings b
          JOIN services s ON s.id = b.service_id
          JOIN staff st ON st.id = b.staff_id
          ORDER BY b.id"
     );
     stream_csv('bookings-' . date('Ymd-His') . '.csv',
-        ['id','booking_date','start_time','end_time','status','customer_name','customer_email','customer_phone','notes','service_name','staff_name','price','management_token','created_at'],
-        array_map(fn($r) => [$r['id'],$r['booking_date'],$r['start_time'],$r['end_time'],$r['status'],$r['customer_name'],$r['customer_email'],$r['customer_phone'],$r['notes'],$r['service_name'],$r['staff_name'],$r['price'],$r['management_token'],$r['created_at']], $rows));
+        ['id','booking_date','start_time','end_time','status','customer_name','customer_email','customer_phone','notes','service_name','staff_name','price','created_at'],
+        array_map(fn($r) => [$r['id'],$r['booking_date'],$r['start_time'],$r['end_time'],$r['status'],$r['customer_name'],$r['customer_email'],$r['customer_phone'],$r['notes'],$r['service_name'],$r['staff_name'],$r['price'],$r['created_at']], $rows));
 }
 
 // ---------------------------------------------------------------------
 // Imports
 // ---------------------------------------------------------------------
 $import_result = null;
+$new_staff_reset_links = $_SESSION['import_staff_reset_links'] ?? [];
+unset($_SESSION['import_staff_reset_links']);
 
 function read_upload_csv(string $field): ?array {
     if (empty($_FILES[$field]['name'])) return null;
@@ -100,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('/admin/import-export.php');
         }
         $inserted = 0; $updated = 0; $errors = [];
+        $reset_links = [];
         foreach ($csv['rows'] as $i => $r) {
             $name = trim((string)($r['name'] ?? ''));
             if ($name === '') { $errors[] = "row " . ($i + 2) . ": missing name"; continue; }
@@ -166,9 +170,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     db_insert("INSERT INTO working_hours (staff_id, day_of_week, start_time, end_time, is_off) VALUES (?,?,?,?,?)",
                         [$nid, $dow, '09:00', '17:00', $off]);
                 }
+                $raw = issue_password_reset_token($nid, 7 * 24 * 3600);
+                if ($raw) {
+                    $reset_links[] = [
+                        'name' => $name,
+                        'email' => $email,
+                        'reset_url' => app_url('/admin/reset-password.php?token=' . $raw),
+                    ];
+                }
                 $inserted++;
             }
         }
+        $_SESSION['import_staff_reset_links'] = $reset_links;
         flash_import_result(compact('inserted','updated','errors'));
         redirect('/admin/import-export.php');
     }
@@ -188,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $date     = trim((string)($r['booking_date'] ?? ''));
             $start    = normalize_time(trim((string)($r['start_time'] ?? ''))) ?? '';
             $end      = normalize_time(trim((string)($r['end_time'] ?? ''))) ?? '';
-            $status   = in_array(($r['status'] ?? 'pending'), ['pending','confirmed','cancelled','completed'], true)
+            $status   = in_array(($r['status'] ?? 'pending'), booking_all_statuses(), true)
                         ? $r['status'] : 'pending';
             $name     = trim((string)($r['customer_name'] ?? ''));
             $email    = strtolower(trim((string)($r['customer_email'] ?? '')));
@@ -201,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_valid_time($start) || !is_valid_time($end)) { $errors[] = "row " . ($i + 2) . ": invalid times"; continue; }
             if ($name === '')                  { $errors[] = "row " . ($i + 2) . ": missing customer_name"; continue; }
 
-            $token = !empty($r['management_token']) ? (string)$r['management_token'] : uuid_v4();
+            $token = uuid_v4();
 
             $id = (int)($r['id'] ?? 0);
             if ($id > 0 && db_fetch("SELECT 1 FROM bookings WHERE id = ?", [$id])) {
@@ -233,10 +246,33 @@ admin_header();
 <h1 class="text-2xl font-semibold mb-4">Import / export</h1>
 <p class="text-sm text-neutral-500 mb-6">Back up your data or move it between installs. Imports are upserts: rows with a matching natural key (service name, staff email, booking id) update the existing row; the rest are inserted.</p>
 
+<?php if ($new_staff_reset_links): ?>
+  <div class="bg-white border border-neutral-200 rounded-xl p-4 mb-6">
+    <div class="font-semibold mb-2">New staff reset links</div>
+    <p class="text-sm text-neutral-500 mb-3">Staff imported in the last CSV upload were created with password-reset links. Send each person their link instead of trying to share a generated password.</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-left text-neutral-500 text-xs uppercase">
+          <tr><th class="py-2 pr-3">Name</th><th class="py-2 pr-3">Email</th><th class="py-2">Reset link</th></tr>
+        </thead>
+        <tbody>
+        <?php foreach ($new_staff_reset_links as $row): ?>
+          <tr class="border-t border-neutral-100">
+            <td class="py-2 pr-3"><?= e($row['name']) ?></td>
+            <td class="py-2 pr-3"><?= e($row['email']) ?></td>
+            <td class="py-2 break-all"><a class="text-primary hover:underline" href="<?= e($row['reset_url']) ?>"><?= e($row['reset_url']) ?></a></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<?php endif; ?>
+
 <div class="grid md:grid-cols-3 gap-4">
   <?php foreach ([
     ['services', 'Services', 'Upsert by service name. Required columns: <code>name</code>, <code>duration_minutes</code>. Optional: description, category, price, is_active, image.'],
-    ['staff',    'Staff',    'Upsert by email. Required: <code>name</code>, <code>email</code>. Optional: phone, role (admin/staff), is_active. New staff get a random temporary password — ask them to use the Forgot-password flow.'],
+    ['staff',    'Staff',    'Upsert by email. Required: <code>name</code>, <code>email</code>. Optional: phone, role (admin/staff), is_active. New staff get a password-reset link after import so you can send them access immediately.'],
     ['bookings', 'Bookings', 'Upsert by id (when present), else insert. Required: <code>service_name</code>, <code>staff_name</code>, <code>booking_date</code>, <code>start_time</code>, <code>end_time</code>, <code>customer_name</code>. Unknown service/staff names are rejected.'],
   ] as [$kind, $title, $desc]): ?>
     <div class="bg-white border border-neutral-200 rounded-xl p-4">

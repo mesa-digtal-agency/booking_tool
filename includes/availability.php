@@ -53,11 +53,9 @@ function busy_intervals(int $staff_id, string $date): array {
         $e = time_to_minutes($r['end_time']);
         if ($e > $s) $out[] = [$s, $e]; // skip degenerate ranges
     }
-    $blocked = db_all(
-        "SELECT start_time, end_time FROM blocked_slots WHERE staff_id = ? AND date = ?",
-        [$staff_id, $date]
-    );
+    $blocked = blocked_slot_candidates($staff_id, $date);
     foreach ($blocked as $r) {
+        if (!blocked_slot_applies_on_date($r, $date)) continue;
         $s = time_to_minutes($r['start_time']);
         $e = time_to_minutes($r['end_time']);
         // Defensive sanity: ignore rows where the end isn't strictly after the
@@ -90,9 +88,9 @@ function compute_slots_for_staff(int $staff_id, int $service_id, string $date): 
 
     // Don't generate past starts for today (in business timezone).
     $nowMinutes = PHP_INT_MIN;
-    $today = (new DateTime('now'))->format('Y-m-d');
+    $today = business_today();
     if ($date === $today) {
-        $now = new DateTime('now');
+        $now = business_now();
         $nowMinutes = (int)$now->format('G') * 60 + (int)$now->format('i');
     }
 
@@ -148,15 +146,22 @@ function compute_end_time(string $start, int $duration_minutes): string {
 }
 
 /** True if [start,end) overlaps any blocked slot for the staff on that date. */
-function has_blocked_overlap(int $staff_id, string $date, string $start, string $end): bool {
-    $row = db_scalar(
-        "SELECT 1 FROM blocked_slots
-         WHERE staff_id = ? AND date = ?
-           AND NOT (end_time <= ? OR start_time >= ?)
-         LIMIT 1",
-        [$staff_id, $date, $start, $end]
+function has_blocked_overlap(int $staff_id, string $date, string $start, string $end, string $lock_clause = ''): bool {
+    $rows = db_all(
+        "SELECT * FROM blocked_slots
+         WHERE staff_id = ?
+           AND (date = ?
+                OR (COALESCE(repeat_mode, '') = 'working_day'
+                    AND date <= ?
+                    AND (repeat_until IS NULL OR repeat_until >= ?)))
+         LIMIT 200" . $lock_clause,
+        [$staff_id, $date, $date, $date]
     );
-    return (bool)$row;
+    foreach ($rows as $row) {
+        if (!blocked_slot_applies_on_date($row, $date)) continue;
+        if (!($row['end_time'] <= $start || $row['start_time'] >= $end)) return true;
+    }
+    return false;
 }
 
 /** True if [start,end) overlaps another active booking for the staff on that date. */
@@ -170,4 +175,31 @@ function has_booking_conflict(int $staff_id, string $date, string $start, string
         [$staff_id, $date, $exclude_booking_id, $start, $end]
     );
     return (bool)$row;
+}
+
+/** Candidate blocked-slot rows for a single date, including recurring ranges. */
+function blocked_slot_candidates(int $staff_id, string $date): array {
+    return db_all(
+        "SELECT * FROM blocked_slots
+         WHERE staff_id = ?
+           AND (date = ?
+                OR (COALESCE(repeat_mode, '') = 'working_day'
+                    AND date <= ?
+                    AND (repeat_until IS NULL OR repeat_until >= ?)))",
+        [$staff_id, $date, $date, $date]
+    );
+}
+
+/** True if a blocked-slot row should apply on a given date. */
+function blocked_slot_applies_on_date(array $row, string $date): bool {
+    if (($row['repeat_mode'] ?? '') !== 'working_day') {
+        return ($row['date'] ?? '') === $date;
+    }
+    if ($date < (string)$row['date']) return false;
+    if (!empty($row['repeat_until']) && $date > (string)$row['repeat_until']) return false;
+
+    $dt = DateTime::createFromFormat('Y-m-d', $date);
+    if (!$dt) return false;
+    $wh = working_hours((int)$row['staff_id'], (int)$dt->format('w'));
+    return $wh && (int)$wh['is_off'] !== 1;
 }

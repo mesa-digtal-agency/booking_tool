@@ -18,6 +18,8 @@
   "logo_mode": "logo_and_name",
   "app_url": "https://yourdomain.com",
   "primary_color": "#7c3aed",
+  "currency_symbol": "$",
+  "default_phone_country_code": "+1",
 
   "_comment_mail": "mail_driver: 'mail' uses PHP mail(); 'smtp' uses the built-in SMTP client. smtp_encryption: 'tls', 'ssl', or ''.",
   "mail_driver": "mail",

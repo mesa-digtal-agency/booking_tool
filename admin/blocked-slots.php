@@ -12,7 +12,6 @@ $staff_list = is_admin()
     : db_all("SELECT id, name FROM staff WHERE id = ? AND is_active = 1", [(int)$scope]);
 
 $errors = [];
-$created_count = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
@@ -28,14 +27,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect('/admin/blocked-slots.php');
     }
 
+    if ($action === 'bulk_delete') {
+        $ids = isset($_POST['ids']) && is_array($_POST['ids']) ? array_values(array_unique(array_map('intval', $_POST['ids']))) : [];
+        if ($ids) {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $params = $ids;
+            $scope_sql = '';
+            if ($scope !== null) {
+                $scope_sql = ' AND staff_id = ?';
+                $params[] = (int)$scope;
+            }
+            $deleted = db_exec("DELETE FROM blocked_slots WHERE id IN ($placeholders)$scope_sql", $params);
+            flash('ok', $deleted > 0 ? "Removed $deleted blocked slot(s)." : 'No blocked slots were removed.');
+        }
+        redirect('/admin/blocked-slots.php');
+    }
+
     $staff_id = (int)($_POST['staff_id'] ?? ($scope ?? 0));
     if ($scope !== null) $staff_id = (int)$scope;
-    $date     = str_in($_POST, 'date', 10);
-    $start    = normalize_time(str_in($_POST, 'start_time', 8)) ?? '';
-    $end      = normalize_time(str_in($_POST, 'end_time', 8)) ?? '';
-    $reason   = str_in($_POST, 'reason', 255);
-    $repeat   = !empty($_POST['repeat']);
-    $until    = str_in($_POST, 'until', 10);
+    $date   = str_in($_POST, 'date', 10);
+    $start  = normalize_time(str_in($_POST, 'start_time', 8)) ?? '';
+    $end    = normalize_time(str_in($_POST, 'end_time', 8)) ?? '';
+    $reason = str_in($_POST, 'reason', 255);
+    $repeat = !empty($_POST['repeat']);
+    $until  = str_in($_POST, 'until', 10);
 
     if ($staff_id <= 0) $errors[] = 'Staff is required.';
     if (!is_valid_date($date)) $errors[] = 'Date is required.';
@@ -52,53 +67,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors) {
-        if ($repeat) {
-            // Pull staff's working_hours and insert a block for every non-off
-            // day from $date through $until (inclusive).
-            $wh = db_all(
-                "SELECT day_of_week, is_off FROM working_hours WHERE staff_id = ?",
-                [$staff_id]
-            );
-            $off_dows = [];
-            foreach ($wh as $r) {
-                if ((int)$r['is_off'] === 1) $off_dows[(int)$r['day_of_week']] = true;
-            }
-
-            $cur = new DateTime($date);
-            $stop = new DateTime($until);
-            $stop->modify('+1 day'); // make the loop inclusive of $until
-            $max_days = 370; // safety cap — at most one year forward
-            $i = 0;
-            while ($cur < $stop && $i < $max_days) {
-                $dow = (int)$cur->format('w'); // 0 = Sunday
-                if (empty($off_dows[$dow])) {
-                    db_insert(
-                        "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason) VALUES (?,?,?,?,?)",
-                        [$staff_id, $cur->format('Y-m-d'), $start, $end, $reason]
-                    );
-                    $created_count++;
-                }
-                $cur->modify('+1 day');
-                $i++;
-            }
-            flash('ok', $created_count > 0
-                ? "Added $created_count blocked slot(s) across working days."
-                : 'No working days found in that range — nothing was added.');
-        } else {
-            db_insert(
-                "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason) VALUES (?,?,?,?,?)",
-                [$staff_id, $date, $start, $end, $reason]
-            );
-            flash('ok', 'Blocked slot added.');
-        }
+        db_insert(
+            "INSERT INTO blocked_slots (staff_id, date, start_time, end_time, reason, repeat_until, repeat_mode)
+             VALUES (?,?,?,?,?,?,?)",
+            [$staff_id, $date, $start, $end, $reason, $repeat ? $until : null, $repeat ? 'working_day' : null]
+        );
+        flash('ok', $repeat ? 'Recurring blocked slot added.' : 'Blocked slot added.');
         redirect('/admin/blocked-slots.php');
     }
 }
 
-$where = "date >= ?";
-$params = [date('Y-m-d', strtotime('-7 days'))];
-if ($scope !== null) { $where .= " AND staff_id = ?"; $params[] = (int)$scope; }
-$rows = db_all("SELECT bs.*, st.name AS staff_name FROM blocked_slots bs JOIN staff st ON st.id = bs.staff_id WHERE $where ORDER BY date DESC, start_time", $params);
+$cutoff = date('Y-m-d', strtotime('-7 days'));
+$where = "(bs.date >= ? OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND bs.repeat_until >= ?))";
+$params = [$cutoff, $cutoff];
+if ($scope !== null) {
+    $where .= " AND bs.staff_id = ?";
+    $params[] = (int)$scope;
+}
+$rows = db_all(
+    "SELECT bs.*, st.name AS staff_name
+     FROM blocked_slots bs
+     JOIN staff st ON st.id = bs.staff_id
+     WHERE $where
+     ORDER BY bs.date DESC, bs.start_time",
+    $params
+);
 
 admin_header();
 ?>
@@ -118,7 +111,7 @@ admin_header();
     </select>
   </label>
   <?php endif; ?>
-  <label>Start date <input type="date" name="date" required value="<?= e(date('Y-m-d')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+  <label>Start date <input type="date" name="date" required value="<?= e(business_today()) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
   <label>Start <input type="time" name="start_time" required value="12:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
   <label>End <input type="time" name="end_time" required value="13:00" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
   <label class="md:col-span-<?= is_admin() ? '5' : '4' ?>">Reason <input name="reason" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md" placeholder="e.g. Lunch, vacation"></label>
@@ -126,13 +119,13 @@ admin_header();
   <div class="md:col-span-5 border-t border-neutral-100 pt-3 mt-1 space-y-2">
     <label class="inline-flex items-center gap-2 cursor-pointer">
       <input type="checkbox" name="repeat" id="repeatCheckbox">
-      <span>Repeat on every working day <span class="text-neutral-400 text-xs">(perfect for lunch breaks or recurring off-hours)</span></span>
+      <span>Repeat on every working day <span class="text-neutral-400 text-xs">(stored as one recurring blocker)</span></span>
     </label>
     <div id="repeatFields" class="hidden">
       <label class="block max-w-xs">Until
-        <input type="date" name="until" value="<?= e(date('Y-m-d', strtotime('+60 days'))) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+        <input type="date" name="until" value="<?= e((new DateTimeImmutable(business_today(), business_timezone_obj()))->modify('+60 days')->format('Y-m-d')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
       </label>
-      <p class="text-xs text-neutral-500 mt-1">Blocks will only be added for the days that aren't marked OFF in the staff's working hours.</p>
+      <p class="text-xs text-neutral-500 mt-1">The recurring blocker applies only on days that aren't marked OFF in the staff member's working hours.</p>
     </div>
   </div>
 
@@ -143,6 +136,7 @@ admin_header();
   <table class="w-full text-sm">
     <thead class="bg-neutral-50 text-left text-neutral-500 text-xs uppercase">
       <tr>
+        <th class="px-3 py-2 w-10"><input type="checkbox" id="selectAllBlocks"></th>
         <th class="px-3 py-2">Date</th>
         <th class="px-3 py-2">Time</th>
         <th class="px-3 py-2">Staff</th>
@@ -151,11 +145,17 @@ admin_header();
       </tr>
     </thead>
     <tbody>
-    <?php if (!$rows): ?><tr><td colspan="5" class="px-3 py-8 text-center text-neutral-500">No blocked slots.</td></tr><?php endif; ?>
+    <?php if (!$rows): ?><tr><td colspan="6" class="px-3 py-8 text-center text-neutral-500">No blocked slots.</td></tr><?php endif; ?>
     <?php foreach ($rows as $r): ?>
       <tr class="border-t border-neutral-100">
-        <td class="px-3 py-2"><?= e($r['date']) ?></td>
-        <td class="px-3 py-2"><?= e(format_time_display($r['start_time'])) ?> – <?= e(format_time_display($r['end_time'])) ?></td>
+        <td class="px-3 py-2"><input type="checkbox" name="ids[]" value="<?= (int)$r['id'] ?>" class="blockCheckbox" form="bulkDeleteForm"></td>
+        <td class="px-3 py-2">
+          <?= e($r['date']) ?>
+          <?php if (($r['repeat_mode'] ?? '') === 'working_day' && !empty($r['repeat_until'])): ?>
+            <div class="text-xs text-neutral-500">Repeats on working days until <?= e($r['repeat_until']) ?></div>
+          <?php endif; ?>
+        </td>
+        <td class="px-3 py-2"><?= e(format_time_display($r['start_time'])) ?> - <?= e(format_time_display($r['end_time'])) ?></td>
         <td class="px-3 py-2"><?= e($r['staff_name']) ?></td>
         <td class="px-3 py-2"><?= e($r['reason']) ?></td>
         <td class="px-3 py-2 text-right">
@@ -171,14 +171,30 @@ admin_header();
     </tbody>
   </table>
 </div>
+<div class="mt-3 flex items-center justify-between text-sm">
+  <div class="text-neutral-500"><?= count($rows) ?> blocker record(s)</div>
+  <button type="submit" form="bulkDeleteForm" class="px-3 py-1.5 rounded-lg border border-red-500 text-red-600 bg-white" onclick="return confirm('Remove the selected blocked slots?')">Delete selected</button>
+</div>
+<form method="post" id="bulkDeleteForm" class="hidden">
+  <?= csrf_field() ?>
+  <input type="hidden" name="action" value="bulk_delete">
+</form>
 
 <script>
 (function(){
   const cb = document.getElementById('repeatCheckbox');
   const fields = document.getElementById('repeatFields');
-  if (!cb || !fields) return;
-  const toggle = () => { fields.classList.toggle('hidden', !cb.checked); };
-  cb.addEventListener('change', toggle); toggle();
+  if (cb && fields) {
+    const toggle = () => { fields.classList.toggle('hidden', !cb.checked); };
+    cb.addEventListener('change', toggle);
+    toggle();
+  }
+
+  const all = document.getElementById('selectAllBlocks');
+  if (!all) return;
+  all.addEventListener('change', function(){
+    document.querySelectorAll('.blockCheckbox').forEach(el => { el.checked = all.checked; });
+  });
 })();
 </script>
 <?php admin_footer(); ?>

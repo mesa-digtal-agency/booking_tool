@@ -109,6 +109,61 @@ function format_money($amount): string {
     return number_format((float)$amount, 2, '.', ',');
 }
 
+/** Configured currency symbol. */
+function currency_symbol(): string {
+    $symbol = (string)($GLOBALS['CONFIG']['currency_symbol'] ?? '$');
+    return $symbol !== '' ? $symbol : '$';
+}
+
+/** Currency-prefixed amount string. */
+function money_with_currency($amount): string {
+    return currency_symbol() . format_money($amount);
+}
+
+/** Default E.164 country code used by phone inputs. */
+function default_phone_country_code(): string {
+    $cc = (string)($GLOBALS['CONFIG']['default_phone_country_code'] ?? '+1');
+    return preg_match('/^\+\d{1,4}$/', $cc) ? $cc : '+1';
+}
+
+/** Business timezone name from config, with a safe fallback. */
+function business_timezone_name(): string {
+    $tz = (string)($GLOBALS['CONFIG']['business_timezone'] ?? 'UTC');
+    return in_array($tz, timezone_identifiers_list(), true) ? $tz : 'UTC';
+}
+
+/** Shared DateTimeZone for business-local date math. */
+function business_timezone_obj(): DateTimeZone {
+    static $tz = null;
+    if ($tz === null) $tz = new DateTimeZone(business_timezone_name());
+    return $tz;
+}
+
+/** Current business-local timestamp. */
+function business_now(): DateTimeImmutable {
+    return new DateTimeImmutable('now', business_timezone_obj());
+}
+
+/** Today's date in the business timezone. */
+function business_today(): string {
+    return business_now()->format('Y-m-d');
+}
+
+/** Booking statuses that still reserve a slot. */
+function booking_active_statuses(): array {
+    return ['pending', 'confirmed'];
+}
+
+/** Booking statuses that count toward revenue. */
+function booking_revenue_statuses(): array {
+    return ['confirmed', 'completed'];
+}
+
+/** All supported booking statuses. */
+function booking_all_statuses(): array {
+    return ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
+}
+
 /** Build absolute URL using app_url. */
 function app_url(string $path = ''): string {
     $base = rtrim((string)($GLOBALS['CONFIG']['app_url'] ?? ''), '/');
@@ -204,6 +259,68 @@ function asset(string $path): string {
 }
 
 /**
+ * Resize and save an uploaded image to improve loading time.
+ *
+ * Falls back to move_uploaded_file() if GD is unavailable.
+ */
+function save_uploaded_image(array $file, string $dest_dir, string $filename, int $max_w, int $max_h): bool {
+    if (!is_dir($dest_dir) && !@mkdir($dest_dir, 0775, true) && !is_dir($dest_dir)) {
+        return false;
+    }
+
+    $dest = rtrim($dest_dir, '/\\') . DIRECTORY_SEPARATOR . $filename;
+    if (!function_exists('imagecreatefromstring') || !function_exists('getimagesize')) {
+        return move_uploaded_file($file['tmp_name'], $dest);
+    }
+
+    $info = @getimagesize($file['tmp_name']);
+    if (!$info) return false;
+    $bytes = @file_get_contents($file['tmp_name']);
+    if ($bytes === false) return false;
+
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) return false;
+
+    $src_w = max(1, (int)$info[0]);
+    $src_h = max(1, (int)$info[1]);
+    $scale = min($max_w / $src_w, $max_h / $src_h, 1);
+    $dst_w = max(1, (int)round($src_w * $scale));
+    $dst_h = max(1, (int)round($src_h * $scale));
+
+    $dst = imagecreatetruecolor($dst_w, $dst_h);
+    if (!$dst) {
+        imagedestroy($src);
+        return false;
+    }
+
+    $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+    if (in_array($ext, ['png', 'webp'], true)) {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefilledrectangle($dst, 0, 0, $dst_w, $dst_h, $transparent);
+    } else {
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $dst_w, $dst_h, $white);
+    }
+
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $dst_w, $dst_h, $src_w, $src_h);
+
+    $ok = false;
+    if ($ext === 'png') {
+        $ok = imagepng($dst, $dest, 6);
+    } elseif ($ext === 'webp' && function_exists('imagewebp')) {
+        $ok = imagewebp($dst, $dest, 82);
+    } else {
+        $ok = imagejpeg($dst, $dest, 82);
+    }
+
+    imagedestroy($dst);
+    imagedestroy($src);
+    return $ok;
+}
+
+/**
  * Transition any confirmed/pending bookings whose end_time has passed to
  * "completed". Called opportunistically on admin page loads — lightweight
  * single UPDATE so it's safe to call often.
@@ -212,16 +329,17 @@ function auto_complete_elapsed_bookings(): void {
     static $done = false;
     if ($done) return;
     $done = true;
-    $today = date('Y-m-d');
-    $now   = date('H:i');
+    $now = business_now();
+    $today = $now->format('Y-m-d');
+    $time = $now->format('H:i');
     try {
         db_exec(
             "UPDATE bookings
                 SET status = 'completed'
-              WHERE status IN ('confirmed','pending')
+              WHERE status = 'confirmed'
                 AND (booking_date < ?
                      OR (booking_date = ? AND end_time <= ?))",
-            [$today, $today, $now]
+            [$today, $today, $time]
         );
     } catch (Throwable $e) {
         // Swallow — auto-complete is best-effort.

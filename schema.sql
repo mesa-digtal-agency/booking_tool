@@ -67,6 +67,8 @@ CREATE TABLE blocked_slots (
     start_time VARCHAR(5) NOT NULL,
     end_time VARCHAR(5) NOT NULL,
     reason VARCHAR(255),
+    repeat_until VARCHAR(10),
+    repeat_mode VARCHAR(20),
     FOREIGN KEY (staff_id) REFERENCES staff(id) ON DELETE CASCADE
 );
 

@@ -24,7 +24,7 @@ $date_h = (new DateTime($booking['booking_date']))->format('l, F j, Y');
           <tr><td style="color:#6b7280;">Date</td><td><?= e($date_h) ?></td></tr>
           <tr><td style="color:#6b7280;">Time</td><td><?= e(format_time_display($booking['start_time'])) ?> – <?= e(format_time_display($booking['end_time'])) ?></td></tr>
           <tr><td style="color:#6b7280;">Duration</td><td><?= e($booking['duration_minutes']) ?> min</td></tr>
-          <tr><td style="color:#6b7280;">Total</td><td><strong>$<?= e(format_money($booking['price'])) ?></strong></td></tr>
+          <tr><td style="color:#6b7280;">Total</td><td><strong><?= e(money_with_currency($booking['price'])) ?></strong></td></tr>
         </table>
         <p>Need to reschedule or cancel? Use the link below:</p>
         <p><a href="<?= e($management_url) ?>" style="display:inline-block;padding:10px 18px;border-radius:8px;background:<?= e($primary) ?>;color:#fff;text-decoration:none;font-weight:600;">Manage booking</a></p>

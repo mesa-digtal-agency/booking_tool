@@ -10,6 +10,8 @@ $edit_id = (int)($_GET['edit'] ?? 0);
 $editing = $edit_id > 0 ? db_fetch("SELECT * FROM services WHERE id = ?", [$edit_id]) : null;
 if ($edit_id && !$editing) { http_response_code(404); exit('Service not found.'); }
 $errors = [];
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_admin(); // only admins modify services
@@ -20,14 +22,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $did = (int)($_POST['id'] ?? 0);
         if ($did > 0) {
             $row = db_fetch("SELECT image FROM services WHERE id = ?", [$did]);
-            db_exec("DELETE FROM staff_services WHERE service_id = ?", [$did]);
-            db_exec("DELETE FROM services WHERE id = ?", [$did]);
-            // Clean up image file if any.
-            if ($row && !empty($row['image'])) {
-                $p = APP_ROOT . '/assets/services/' . basename($row['image']);
-                if (is_file($p)) @unlink($p);
+            if ((int)db_scalar("SELECT COUNT(*) FROM bookings WHERE service_id = ?", [$did]) > 0) {
+                db_exec("UPDATE services SET is_active = 0 WHERE id = ?", [$did]);
+                db_exec("DELETE FROM staff_services WHERE service_id = ?", [$did]);
+                flash('warn', 'Service archived instead of deleted because existing bookings still reference it.');
+            } else {
+                db_exec("DELETE FROM staff_services WHERE service_id = ?", [$did]);
+                db_exec("DELETE FROM services WHERE id = ?", [$did]);
+                // Clean up image file if any.
+                if ($row && !empty($row['image'])) {
+                    $p = APP_ROOT . '/assets/services/' . basename($row['image']);
+                    if (is_file($p)) @unlink($p);
+                }
+                flash('ok', 'Service deleted.');
             }
-            flash('ok', 'Service deleted.');
         }
         redirect('/admin/services.php');
     }
@@ -76,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dest_dir = APP_ROOT . '/assets/services';
                 if (!is_dir($dest_dir)) @mkdir($dest_dir, 0775, true);
                 $dest = $dest_dir . '/' . $new;
-                if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                if (!save_uploaded_image($file, $dest_dir, $new, 512, 512)) {
                     $errors[] = 'Could not save image.';
                 } else {
                     if (!empty($editing['image'])) {
@@ -116,7 +124,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $editing = array_merge($editing ?? [], $data, ['image' => $image_filename]);
 }
 
-$all = db_all("SELECT * FROM services ORDER BY is_active DESC, category, name");
+$total_rows = (int)db_scalar("SELECT COUNT(*) FROM services");
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+$all = db_all("SELECT * FROM services ORDER BY is_active DESC, category, name LIMIT $per_page OFFSET $offset");
 $staff_list = db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name");
 $assigned_ids = [];
 if ($editing && !empty($editing['id'])) {
@@ -146,7 +158,7 @@ admin_header();
       <label class="text-sm block">Name <input name="name" required value="<?= e($editing['name'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
       <label class="text-sm block">Category <input name="category" value="<?= e($editing['category'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
       <label class="text-sm block">Duration (min) <input name="duration_minutes" type="number" min="5" step="5" required value="<?= e((string)($editing['duration_minutes'] ?? 30)) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
-      <label class="text-sm block">Price <input name="price" type="number" min="0" step="0.01" required value="<?= e((string)($editing['price'] ?? 0)) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+      <label class="text-sm block">Price (<?= e(currency_symbol()) ?>) <input name="price" type="number" min="0" step="0.01" required value="<?= e((string)($editing['price'] ?? 0)) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
     </div>
     <label class="text-sm block">Description
       <textarea name="description" rows="2" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"><?= e($editing['description'] ?? '') ?></textarea>
@@ -214,7 +226,7 @@ admin_header();
         <td class="px-3 py-2 font-medium"><?= e($s['name']) ?></td>
         <td class="px-3 py-2"><?= e($s['category']) ?></td>
         <td class="px-3 py-2"><?= (int)$s['duration_minutes'] ?> min</td>
-        <td class="px-3 py-2">$<?= format_money($s['price']) ?></td>
+        <td class="px-3 py-2"><?= e(money_with_currency($s['price'])) ?></td>
         <td class="px-3 py-2"><?= (int)$s['is_active'] ? 'Yes' : 'No' ?></td>
         <?php if (is_admin()): ?>
         <td class="px-3 py-2 text-right">
@@ -231,5 +243,14 @@ admin_header();
     <?php endforeach; ?>
     </tbody>
   </table>
+</div>
+<div class="mt-3 flex items-center justify-between text-xs text-neutral-500">
+  <div>Page <?= $page ?> of <?= $total_pages ?> · <?= $total_rows ?> service(s)</div>
+  <div class="flex items-center gap-2">
+    <?php $query = $_GET; $query['page'] = max(1, $page - 1); ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page <= 1 ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Prev</a>
+    <?php $query['page'] = min($total_pages, $page + 1); ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page >= $total_pages ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Next</a>
+  </div>
 </div>
 <?php admin_footer(); ?>

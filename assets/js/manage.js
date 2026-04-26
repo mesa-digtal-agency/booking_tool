@@ -5,6 +5,8 @@
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
   const token = tokenMeta ? tokenMeta.content : '';
   if (!token) return;
+  const CURRENCY_SYMBOL = document.body.dataset.currencySymbol || '$';
+  const BUSINESS_TODAY = document.body.dataset.businessToday || '';
 
   const bookingBox = document.getElementById('bookingBox');
   const actions = document.getElementById('actions');
@@ -48,7 +50,7 @@
   function fmtDateHuman(d) {
     return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday:'long', month:'short', day:'numeric', year:'numeric' });
   }
-  function fmtMoney(n) { return '$' + Number(n).toFixed(2); }
+  function fmtMoney(n) { return CURRENCY_SYMBOL + Number(n).toFixed(2); }
 
   function renderBooking(b, canReschedule) {
     const statusColor = {
@@ -56,6 +58,7 @@
       pending: 'bg-amber-100 text-amber-700',
       cancelled: 'bg-red-100 text-red-700',
       completed: 'bg-neutral-100 text-neutral-600',
+      no_show: 'bg-slate-200 text-slate-700',
     }[b.status] || 'bg-neutral-100';
     bookingBox.innerHTML = `
       <div class="flex items-start justify-between gap-3">
@@ -108,10 +111,11 @@
     }
   });
 
-  rescheduleBtn.addEventListener('click', () => {
+    rescheduleBtn.addEventListener('click', () => {
     rescheduleUI.classList.remove('hidden');
-    const today = new Date(); today.setDate(today.getDate() + 1);
-    const iso = today.toISOString().slice(0, 10);
+    const today = BUSINESS_TODAY ? new Date(BUSINESS_TODAY + 'T00:00:00') : new Date();
+    today.setDate(today.getDate() + 1);
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     newDate.min = iso;
     newDate.value = iso;
     loadNewSlots();

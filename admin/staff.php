@@ -10,6 +10,8 @@ $edit_id = (int)($_GET['edit'] ?? 0);
 $editing = $edit_id > 0 ? db_fetch("SELECT * FROM staff WHERE id = ?", [$edit_id]) : null;
 if ($edit_id && !$editing) { http_response_code(404); exit('Not found.'); }
 $errors = [];
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
@@ -20,6 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($did > 0 && $did !== (int)current_user()['id']) {
             if (is_last_active_admin($did)) {
                 flash('error', 'Cannot delete the only active admin — the business would be locked out.');
+            } elseif ((int)db_scalar("SELECT COUNT(*) FROM bookings WHERE staff_id = ?", [$did]) > 0) {
+                flash('error', 'Cannot delete this staff member because existing bookings still reference them. Reassign or remove those bookings first.');
             } else {
                 db_exec("DELETE FROM staff WHERE id = ?", [$did]);
                 flash('ok', 'Staff member deleted.');
@@ -38,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     if ($data['name'] === '') $errors[] = 'Name is required.';
     if (!is_valid_email($data['email'])) $errors[] = 'Email is invalid.';
+    if ($data['phone'] !== '' && !is_valid_phone($data['phone'])) $errors[] = 'Phone is invalid.';
 
     // Last-admin guard: block edits that demote or deactivate the sole
     // active admin, regardless of who is performing the edit.
@@ -82,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ext = $ext_map[$mime];
                 $new = 'staff_' . ($editing['id'] ?? 'new') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
                 $dest = APP_ROOT . '/assets/avatars/' . $new;
-                if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                if (!save_uploaded_image($file, APP_ROOT . '/assets/avatars', $new, 256, 256)) {
                     $errors[] = 'Could not save avatar.';
                 } else {
                     // Remove old avatar if any.
@@ -134,7 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $editing = array_merge($editing ?? [], $data, ['avatar' => $avatar_filename]);
 }
 
-$all = db_all("SELECT s.*, (SELECT COUNT(*) FROM staff_services ss WHERE ss.staff_id = s.id) AS svc_count FROM staff s ORDER BY is_active DESC, name");
+$total_rows = (int)db_scalar("SELECT COUNT(*) FROM staff");
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+$all = db_all("SELECT s.*, (SELECT COUNT(*) FROM staff_services ss WHERE ss.staff_id = s.id) AS svc_count FROM staff s ORDER BY is_active DESC, name LIMIT $per_page OFFSET $offset");
 
 admin_header();
 ?>
@@ -154,7 +163,9 @@ admin_header();
     <div class="grid md:grid-cols-2 gap-3">
       <label class="text-sm block">Name <input name="name" required value="<?= e($editing['name'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
       <label class="text-sm block">Email <input type="email" name="email" required value="<?= e($editing['email'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
-      <label class="text-sm block">Phone <input name="phone" value="<?= e($editing['phone'] ?? '') ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md"></label>
+      <label class="text-sm block">Phone
+        <div class="mt-1" data-phone-input data-name="phone" data-default-cc="<?= e(default_phone_country_code()) ?>" data-value="<?= e($editing['phone'] ?? '') ?>"></div>
+      </label>
       <label class="text-sm block">Role
         <select name="role" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
           <option value="staff" <?= ($editing['role'] ?? 'staff')==='staff'?'selected':'' ?>>Staff</option>
@@ -221,4 +232,14 @@ admin_header();
     </tbody>
   </table>
 </div>
+<div class="mt-3 flex items-center justify-between text-xs text-neutral-500">
+  <div>Page <?= $page ?> of <?= $total_pages ?> · <?= $total_rows ?> staff member(s)</div>
+  <div class="flex items-center gap-2">
+    <?php $query = $_GET; $query['page'] = max(1, $page - 1); ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page <= 1 ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Prev</a>
+    <?php $query['page'] = min($total_pages, $page + 1); ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page >= $total_pages ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Next</a>
+  </div>
+</div>
+<script src="/assets/js/phone-input.js"></script>
 <?php admin_footer(); ?>

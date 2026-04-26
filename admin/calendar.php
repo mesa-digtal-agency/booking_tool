@@ -8,8 +8,9 @@ $page_title = 'Calendar';
 $active = 'calendar';
 
 $view = $_GET['view'] ?? 'week'; // week|day
-$start_param = $_GET['start'] ?? date('Y-m-d');
-if (!is_valid_date($start_param)) $start_param = date('Y-m-d');
+$today = business_today();
+$start_param = $_GET['start'] ?? $today;
+if (!is_valid_date($start_param)) $start_param = $today;
 $scope = scope_staff_id();
 
 // For week: find Monday of the start.
@@ -46,7 +47,7 @@ $bookings = db_all(
      FROM bookings b
      JOIN services s ON s.id = b.service_id
      JOIN staff st ON st.id = b.staff_id
-     WHERE b.booking_date BETWEEN ? AND ? AND b.status IN ('pending','confirmed','completed') $staff_where
+     WHERE b.booking_date BETWEEN ? AND ? AND b.status IN ('pending','confirmed','cancelled','completed','no_show') $staff_where
      ORDER BY b.booking_date, b.start_time",
     [$from, $to]
 );
@@ -55,13 +56,14 @@ $blocked = db_all(
     "SELECT bs.*, st.name AS staff_name
      FROM blocked_slots bs
      JOIN staff st ON st.id = bs.staff_id
-     WHERE bs.date BETWEEN ? AND ? " . ($staff_filter ? " AND bs.staff_id = " . (int)$staff_filter : ""),
-    [$from, $to]
+     WHERE (bs.date BETWEEN ? AND ?
+            OR (COALESCE(bs.repeat_mode, '') = 'working_day' AND bs.date <= ? AND bs.repeat_until >= ?))" . ($staff_filter ? " AND bs.staff_id = " . (int)$staff_filter : ""),
+    [$from, $to, $to, $from]
 );
 
 $staff_list = db_all("SELECT id, name FROM staff WHERE is_active = 1 ORDER BY name");
 
-// Hourly grid 7am–22pm by default, but expand to fit data.
+// Hourly grid 7am-10pm by default, but expand to fit data.
 $hour_start = 7; $hour_end = 22;
 $by_day = array_fill_keys($days, []);
 foreach ($bookings as $b) {
@@ -72,7 +74,9 @@ foreach ($bookings as $b) {
     if ($he > $hour_end)   $hour_end = $he;
 }
 foreach ($blocked as $bl) {
-    $by_day[$bl['date']][] = $bl + ['__type' => 'blocked'];
+    foreach (expand_blocked_slot_for_days($bl, $days) as $occurrence) {
+        $by_day[$occurrence['date']][] = $occurrence + ['__type' => 'blocked'];
+    }
 }
 $hour_start = max(0, $hour_start);
 $hour_end   = min(24, $hour_end);
@@ -83,6 +87,7 @@ $status_bg = [
     'pending'   => '#f59e0b',
     'cancelled' => '#ef4444',
     'completed' => '#6b7280',
+    'no_show'   => '#64748b',
 ];
 
 // Nav
@@ -100,7 +105,7 @@ admin_header();
         <a class="px-3 py-1.5 <?= $view==='week' ? 'bg-primary text-white' : 'bg-white' ?>" href="?view=week&start=<?= e($from) ?>&staff_id=<?= e($staff_filter_raw) ?>">Week</a>
     </div>
     <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="?view=<?= e($view) ?>&start=<?= e($prev) ?>&staff_id=<?= e($staff_filter_raw) ?>">←</a>
-    <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="?view=<?= e($view) ?>&start=<?= e(date('Y-m-d')) ?>&staff_id=<?= e($staff_filter_raw) ?>">Today</a>
+    <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="?view=<?= e($view) ?>&start=<?= e($today) ?>&staff_id=<?= e($staff_filter_raw) ?>">Today</a>
     <a class="px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-sm" href="?view=<?= e($view) ?>&start=<?= e($next) ?>&staff_id=<?= e($staff_filter_raw) ?>">→</a>
     <?php if (is_admin()): ?>
     <form method="get" class="flex items-center gap-2">
@@ -125,7 +130,7 @@ admin_header();
         <?php foreach ($days as $d): $dt2 = new DateTime($d); ?>
             <div class="p-2 text-center text-xs text-neutral-500 border-l border-neutral-100">
                 <div class="uppercase tracking-wide"><?= $dt2->format('D') ?></div>
-                <div class="text-lg <?= $d === date('Y-m-d') ? 'text-primary font-semibold' : 'text-neutral-900' ?>"><?= $dt2->format('j') ?></div>
+                <div class="text-lg <?= $d === $today ? 'text-primary font-semibold' : 'text-neutral-900' ?>"><?= $dt2->format('j') ?></div>
                 <div class="text-[10px]"><?= $dt2->format('M') ?></div>
             </div>
         <?php endforeach; ?>
@@ -154,11 +159,11 @@ admin_header();
                 <a href="<?= e($href) ?>" class="absolute left-1 right-1 rounded-md px-2 py-1 text-[11px] leading-tight overflow-hidden z-10 hover:z-20 hover:shadow-md hover:h-auto"
                    style="top: <?= $top_px ?>px; height: <?= $height_px ?>px; min-height: 44px; background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
                    <?php if ($is_b): ?>
-                       <div class="font-medium truncate">Blocked · <?= e($item['staff_name']) ?></div>
+                       <div class="font-medium truncate">Blocked - <?= e($item['staff_name']) ?></div>
                        <div class="text-neutral-500 truncate"><?= e($item['reason']) ?></div>
                    <?php else: ?>
                        <div class="font-medium truncate"><?= e(format_time_display($item['start_time'])) ?> <?= e($item['customer_name']) ?></div>
-                       <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> · <?= e($item['staff_name']) ?></div>
+                       <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> - <?= e($item['staff_name']) ?></div>
                    <?php endif; ?>
                 </a>
                 <?php endforeach; ?>
@@ -172,6 +177,18 @@ admin_header();
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f59e0b22;border-left:3px solid #f59e0b"></span>Pending</span>
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ef444422;border-left:3px solid #ef4444"></span>Cancelled</span>
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#6b728022;border-left:3px solid #6b7280"></span>Completed</span>
+    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#64748b22;border-left:3px solid #64748b"></span>No-show</span>
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f3f4f6;border-left:3px solid #9ca3af"></span>Blocked</span>
 </div>
 <?php admin_footer(); ?>
+<?php
+function expand_blocked_slot_for_days(array $row, array $days): array {
+    $out = [];
+    foreach ($days as $day) {
+        if (!blocked_slot_applies_on_date($row, $day)) continue;
+        $copy = $row;
+        $copy['date'] = $day;
+        $out[] = $copy;
+    }
+    return $out;
+}

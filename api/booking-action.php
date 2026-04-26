@@ -21,8 +21,8 @@ if (!in_array($b['status'], ['confirmed', 'pending'], true)) {
     json_error('Booking is already ' . $b['status'] . '.', 409);
 }
 
-$dt_start = DateTime::createFromFormat('Y-m-d H:i', $b['booking_date'] . ' ' . $b['start_time']);
-$secs_to_start = $dt_start ? ($dt_start->getTimestamp() - time()) : -1;
+$dt_start = DateTime::createFromFormat('Y-m-d H:i', $b['booking_date'] . ' ' . $b['start_time'], business_timezone_obj());
+$secs_to_start = $dt_start ? ($dt_start->getTimestamp() - business_now()->getTimestamp()) : -1;
 
 if ($action === 'reschedule') {
     if ($secs_to_start < 24 * 3600) {
@@ -36,26 +36,73 @@ if ($action === 'reschedule') {
     $service = get_service((int)$b['service_id']);
     if (!$service) json_error('Service no longer available.', 409);
 
-    // Make sure the new slot is free for the same staff.
-    $dt_new = DateTime::createFromFormat('Y-m-d H:i', $new_date . ' ' . $new_time);
-    if (!$dt_new || $dt_new->getTimestamp() <= time()) {
+    $dt_new = DateTime::createFromFormat('Y-m-d H:i', $new_date . ' ' . $new_time, business_timezone_obj());
+    if (!$dt_new || $dt_new->getTimestamp() <= business_now()->getTimestamp()) {
         json_error('New time is in the past.', 422);
     }
-
-    if (!is_slot_free((int)$b['staff_id'], (int)$b['service_id'], $new_date, $new_time)) {
-        // try finding any staff
-        $alt = first_available_staff((int)$b['service_id'], $new_date, $new_time);
-        if (!$alt) json_error('That time is not available.', 409);
-        $b['staff_id'] = $alt;
-    }
-
     $end_time = compute_end_time($new_time, (int)$service['duration_minutes']);
+    $target_staff_id = null;
 
-    db_exec(
-        "UPDATE bookings SET booking_date = ?, start_time = ?, end_time = ?, staff_id = ?, status = 'confirmed'
-         WHERE id = ?",
-        [$new_date, $new_time, $end_time, (int)$b['staff_id'], (int)$b['id']]
-    );
+    try {
+        db_begin_exclusive();
+        $lock = db_for_update_clause();
+
+        $locked = db_fetch(
+            "SELECT * FROM bookings WHERE id = ? LIMIT 1" . $lock,
+            [(int)$b['id']]
+        );
+        if (!$locked) {
+            db_rollback();
+            json_error('Booking not found.', 404);
+        }
+        if (!in_array($locked['status'], ['confirmed', 'pending'], true)) {
+            db_rollback();
+            json_error('Booking is already ' . $locked['status'] . '.', 409);
+        }
+
+        $candidates = [(int)$locked['staff_id']];
+        foreach (staff_for_service((int)$locked['service_id']) as $member) {
+            $sid = (int)$member['id'];
+            if ($sid !== (int)$locked['staff_id']) $candidates[] = $sid;
+        }
+
+        foreach ($candidates as $candidate_staff_id) {
+            if (!staff_can_take_slot($candidate_staff_id, $new_date, $new_time, $end_time)) {
+                continue;
+            }
+
+            $conflict = db_scalar(
+                "SELECT 1 FROM bookings
+                 WHERE staff_id = ? AND booking_date = ? AND status IN ('pending','confirmed')
+                   AND id <> ?
+                   AND NOT (end_time <= ? OR start_time >= ?)
+                 LIMIT 1" . $lock,
+                [$candidate_staff_id, $new_date, (int)$locked['id'], $new_time, $end_time]
+            );
+            if ($conflict) continue;
+
+            if (has_blocked_overlap($candidate_staff_id, $new_date, $new_time, $end_time, $lock)) continue;
+
+            $target_staff_id = $candidate_staff_id;
+            break;
+        }
+
+        if ($target_staff_id === null) {
+            db_rollback();
+            json_error('That time is not available.', 409);
+        }
+
+        db_exec(
+            "UPDATE bookings SET booking_date = ?, start_time = ?, end_time = ?, staff_id = ?, status = 'confirmed'
+             WHERE id = ?",
+            [$new_date, $new_time, $end_time, $target_staff_id, (int)$locked['id']]
+        );
+        db_commit();
+    } catch (Throwable $e) {
+        db_rollback();
+        error_log('Booking reschedule failed: ' . $e->getMessage());
+        json_error('Could not reschedule booking. Please try again.', 500);
+    }
 
     $b = db_fetch(
         "SELECT b.*, s.name AS service_name, s.duration_minutes, s.price,
@@ -99,6 +146,21 @@ function send_action_email(string $action, array $b): void {
     include APP_ROOT . '/includes/email-templates/' . $tmpl_file;
     $html = ob_get_clean();
     @send_mail($b['customer_email'], $subject, $html);
+}
+
+function staff_can_take_slot(int $staff_id, string $date, string $start, string $end): bool {
+    $dt = DateTime::createFromFormat('Y-m-d', $date);
+    if (!$dt) return false;
+
+    $wh = working_hours($staff_id, (int)$dt->format('w'));
+    if (!$wh || (int)$wh['is_off'] === 1) return false;
+
+    $start_min = time_to_minutes($start);
+    $end_min = time_to_minutes($end);
+    $wh_start = time_to_minutes($wh['start_time']);
+    $wh_end = time_to_minutes($wh['end_time']);
+
+    return $start_min >= $wh_start && $end_min <= $wh_end;
 }
 
 function public_booking_shape(array $b): array {

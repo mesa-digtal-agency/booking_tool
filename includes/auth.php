@@ -91,3 +91,21 @@ function is_last_active_admin(int $staff_id): bool {
     );
     return $others === 0;
 }
+
+/** Create and persist a password-reset token, returning the raw token. */
+function issue_password_reset_token(int $staff_id, int $ttl_seconds = 3600): ?string {
+    if (function_exists('ensure_migrations')) ensure_migrations();
+    try {
+        $raw = bin2hex(random_bytes(32));
+        $hash = hash('sha256', $raw);
+        $expires = business_now()->modify('+' . max(60, $ttl_seconds) . ' seconds')->format('Y-m-d H:i:s');
+        db_insert(
+            "INSERT INTO password_resets (staff_id, token_hash, expires_at) VALUES (?, ?, ?)",
+            [$staff_id, $hash, $expires]
+        );
+        return $raw;
+    } catch (Throwable $e) {
+        error_log('issue_password_reset_token failed: ' . $e->getMessage());
+        return null;
+    }
+}

@@ -19,7 +19,10 @@ $biz = business_name();
     </script>
     <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
 </head>
-<body class="min-h-screen bg-neutral-50 text-neutral-900" data-time-format="<?= e(time_format()) ?>">
+<body class="min-h-screen bg-neutral-50 text-neutral-900"
+      data-time-format="<?= e(time_format()) ?>"
+      data-currency-symbol="<?= e(currency_symbol()) ?>"
+      data-business-today="<?= e(business_today()) ?>">
 <div id="toastRoot"></div>
 <header class="bg-white border-b border-neutral-200">
     <div class="max-w-2xl mx-auto flex items-center justify-between px-4 py-4">

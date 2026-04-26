@@ -20,16 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Throttle: allow one active token per 5 minutes per account.
             $recent = (int)db_scalar(
                 "SELECT COUNT(*) FROM password_resets WHERE staff_id = ? AND created_at >= ?",
-                [(int)$staff['id'], date('Y-m-d H:i:s', time() - 300)]
+                [(int)$staff['id'], gmdate('Y-m-d H:i:s', time() - 300)]
             );
             if ($recent < 3) {
-                $raw = bin2hex(random_bytes(32));              // 64-char URL-safe
-                $hash = hash('sha256', $raw);
-                $expires = date('Y-m-d H:i:s', time() + 3600); // 1 hour
-                db_insert(
-                    "INSERT INTO password_resets (staff_id, token_hash, expires_at) VALUES (?, ?, ?)",
-                    [(int)$staff['id'], $hash, $expires]
-                );
+                $raw = issue_password_reset_token((int)$staff['id'], 3600);
+                if (!$raw) {
+                    $sent = true;
+                    goto done_post;
+                }
                 $reset_url = app_url('/admin/reset-password.php?token=' . $raw);
                 ob_start();
                 $tmpl = ['name' => $staff['name'], 'reset_url' => $reset_url];
@@ -42,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sent = true;
     }
 }
+done_post:
 
 $primary = primary_color();
 $biz = business_name();

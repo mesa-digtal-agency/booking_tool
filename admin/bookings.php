@@ -9,18 +9,23 @@ $active = 'bookings';
 $scope = scope_staff_id();
 
 // Filters
-$from = $_GET['from'] ?? date('Y-m-d', strtotime('-7 days'));
-$to   = $_GET['to']   ?? date('Y-m-d', strtotime('+30 days'));
-if (!is_valid_date($from)) $from = date('Y-m-d', strtotime('-7 days'));
-if (!is_valid_date($to))   $to   = date('Y-m-d', strtotime('+30 days'));
+$today_dt = new DateTimeImmutable(business_today(), business_timezone_obj());
+$from_default = $today_dt->modify('-7 days')->format('Y-m-d');
+$to_default   = $today_dt->modify('+30 days')->format('Y-m-d');
+$from = $_GET['from'] ?? $from_default;
+$to   = $_GET['to']   ?? $to_default;
+if (!is_valid_date($from)) $from = $from_default;
+if (!is_valid_date($to))   $to   = $to_default;
 
 $status_filter  = $_GET['status']     ?? '';
 $staff_filter   = $_GET['staff_id']   ?? '';
 $service_filter = $_GET['service_id'] ?? '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 25;
 
 $where = ['b.booking_date BETWEEN ? AND ?'];
 $params = [$from, $to];
-if (in_array($status_filter, ['pending','confirmed','cancelled','completed'], true)) {
+if (in_array($status_filter, booking_all_statuses(), true)) {
     $where[] = 'b.status = ?'; $params[] = $status_filter;
 }
 if ($scope !== null) {
@@ -32,11 +37,18 @@ if ($service_filter !== '' && $service_filter !== 'all') {
     $where[] = 'b.service_id = ?'; $params[] = (int)$service_filter;
 }
 
+$where_sql = implode(' AND ', $where);
+$count_sql = "SELECT COUNT(*) FROM bookings b WHERE $where_sql";
+$total_rows = (int)db_scalar($count_sql, $params);
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+if ($page > $total_pages) $page = $total_pages;
+$offset = ($page - 1) * $per_page;
+
 $sql = "SELECT b.*, s.name AS service_name, s.price, st.name AS staff_name
         FROM bookings b
         JOIN services s ON s.id = b.service_id
         JOIN staff st ON st.id = b.staff_id
-        WHERE " . implode(' AND ', $where) . "
+        WHERE $where_sql
         ORDER BY b.booking_date DESC, b.start_time DESC";
 
 // CSV export
@@ -58,7 +70,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     exit;
 }
 
-$rows = db_all($sql, $params);
+$rows = db_all($sql . " LIMIT $per_page OFFSET $offset", $params);
 $services = db_all("SELECT id, name FROM services ORDER BY name");
 $staff = db_all("SELECT id, name FROM staff ORDER BY name");
 
@@ -76,7 +88,7 @@ admin_header();
   <label>Status
     <select name="status" class="w-full mt-1 px-2 py-1.5 border border-neutral-200 rounded-md">
       <option value="">All</option>
-      <?php foreach (['pending','confirmed','cancelled','completed'] as $s): ?>
+      <?php foreach (booking_all_statuses() as $s): ?>
         <option <?= $s===$status_filter?'selected':'' ?>><?= $s ?></option>
       <?php endforeach; ?>
     </select>
@@ -131,6 +143,7 @@ admin_header();
           'pending'   => 'bg-amber-100 text-amber-700',
           'cancelled' => 'bg-red-100 text-red-700',
           'completed' => 'bg-neutral-100 text-neutral-700',
+          'no_show'   => 'bg-slate-200 text-slate-700',
         ];
       ?>
         <tr class="border-t border-neutral-100">
@@ -143,7 +156,7 @@ admin_header();
           <td class="px-3 py-2"><?= e($r['service_name']) ?></td>
           <td class="px-3 py-2"><?= e($r['staff_name']) ?></td>
           <td class="px-3 py-2"><span class="text-xs px-2 py-0.5 rounded-full <?= e($colors[$r['status']] ?? '') ?>"><?= e($r['status']) ?></span></td>
-          <td class="px-3 py-2">$<?= format_money($r['price']) ?></td>
+          <td class="px-3 py-2"><?= e(money_with_currency($r['price'])) ?></td>
           <td class="px-3 py-2 text-right"><a class="text-primary hover:underline" href="/admin/booking-edit.php?id=<?= (int)$r['id'] ?>">Edit</a></td>
         </tr>
       <?php endforeach; ?>
@@ -151,5 +164,18 @@ admin_header();
     </table>
   </div>
 </div>
-<p class="text-xs text-neutral-500 mt-2"><?= count($rows) ?> result(s)</p>
+<div class="mt-3 flex items-center justify-between text-xs text-neutral-500">
+  <div>Page <?= $page ?> of <?= $total_pages ?> · <?= $total_rows ?> result(s)</div>
+  <div class="flex items-center gap-2">
+    <?php
+      $query = $_GET;
+      $query['page'] = max(1, $page - 1);
+    ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page <= 1 ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Prev</a>
+    <?php
+      $query['page'] = min($total_pages, $page + 1);
+    ?>
+    <a class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $page >= $total_pages ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($query)) ?>">Next</a>
+  </div>
+</div>
 <?php admin_footer(); ?>
