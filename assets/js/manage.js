@@ -18,6 +18,7 @@
   const newSlotsEmpty = document.getElementById('newSlotsEmpty');
   const feedback = document.getElementById('feedback');
   let current = null;
+  if (!bookingBox || !actions || !rescheduleBtn || !cancelBtn || !rescheduleUI || !newDate || !newSlots || !newSlotsEmpty || !feedback) return;
 
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Accept': 'application/json', 'X-CSRF-Token': csrf }, opts.headers || {});
@@ -79,10 +80,13 @@
     actions.classList.toggle('hidden', !canAct);
     cancelBtn.classList.toggle('hidden', !canAct);
     rescheduleBtn.classList.toggle('hidden', !canAct || !canReschedule);
+    const oldNote = actions.querySelector('[data-reschedule-note]');
+    if (oldNote) oldNote.remove();
 
     if (canAct && !canReschedule) {
       // Add a note explaining why reschedule is disabled
       const note = document.createElement('div');
+      note.dataset.rescheduleNote = 'true';
       note.className = 'text-xs text-neutral-500 mt-2';
       note.textContent = 'Rescheduling is only available more than 24 hours in advance. You can still cancel.';
       actions.appendChild(note);

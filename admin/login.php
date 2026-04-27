@@ -8,9 +8,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $email = str_in($_POST, 'email', 190);
     $pwd   = (string)($_POST['password'] ?? '');
-    if (attempt_login($email, $pwd)) {
+    $now = time();
+    $bucket = &$_SESSION['login_attempts'];
+    if (!is_array($bucket ?? null)) $bucket = [];
+    $bucket = array_values(array_filter($bucket, fn($ts) => (int)$ts > $now - 900));
+    if (count($bucket) >= 10) {
+        $error = 'Too many login attempts. Please wait a few minutes and try again.';
+    } elseif (attempt_login($email, $pwd)) {
+        unset($_SESSION['login_attempts']);
         redirect('/admin/index.php');
     } else {
+        $bucket[] = $now;
         $error = 'Invalid email or password.';
     }
 }

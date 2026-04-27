@@ -1,5 +1,5 @@
 {
-  "_comment_db": "Database: 'sqlite' (default, zero-config) or 'mysql'.",
+  "_comment_db": "Database: 'sqlite' (default, zero-config) or 'mysql'. Production may override these with BOOKING_DB_* environment variables.",
   "db_type": "sqlite",
   "db_path": "data/booking.sqlite",
   "db_host": "localhost",
@@ -25,7 +25,7 @@
   "currency_symbol": "$",
   "default_phone_country_code": "+1",
 
-  "_comment_mail": "mail_driver: 'mail' uses PHP mail(); 'smtp' uses the built-in SMTP client. smtp_encryption: 'tls', 'ssl', or ''.",
+  "_comment_mail": "mail_driver: 'mail' uses PHP mail(); 'smtp' uses the built-in SMTP client. Production may override these with BOOKING_MAIL_DRIVER, BOOKING_SMTP_*, BOOKING_FROM_*, and BOOKING_APP_URL environment variables.",
   "mail_driver": "mail",
   "smtp_host": "",
   "smtp_port": 587,

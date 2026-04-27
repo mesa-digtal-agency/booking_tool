@@ -84,22 +84,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     unset($next['bookings_per_page']);
     $next['time_format'] = ($_POST['time_format'] ?? '24h') === '12h' ? '12h' : '24h';
     $next['mail_driver'] = ($_POST['mail_driver'] ?? 'mail') === 'smtp' ? 'smtp' : 'mail';
-    $next['smtp_host'] = str_in($_POST, 'smtp_host', 190);
+    $next['smtp_host'] = mail_sanitize_header(str_in($_POST, 'smtp_host', 190), 190);
     $next['smtp_port'] = max(1, min(65535, (int)($_POST['smtp_port'] ?? 587)));
     $next['smtp_username'] = str_in($_POST, 'smtp_username', 190);
-    $next['smtp_password'] = str_in($_POST, 'smtp_password', 255);
+    $posted_smtp_password = str_in($_POST, 'smtp_password', 255);
+    $next['smtp_password'] = $posted_smtp_password !== ''
+        ? $posted_smtp_password
+        : (string)($raw['smtp_password'] ?? '');
     $next['smtp_encryption'] = in_array(($_POST['smtp_encryption'] ?? 'tls'), ['', 'tls', 'ssl'], true) ? $_POST['smtp_encryption'] : 'tls';
     $next['from_email'] = strtolower(str_in($_POST, 'from_email', 190));
-    $next['from_name'] = str_in($_POST, 'from_name', 120);
+    $next['from_name'] = mail_sanitize_header(str_in($_POST, 'from_name', 120), 120);
 
     if ($next['business_name'] === '') $errors[] = 'Business name is required.';
     if (!in_array($next['business_timezone'], timezone_identifiers_list(), true)) $errors[] = 'Business timezone is invalid.';
     if ($next['app_url'] !== '' && !filter_var($next['app_url'], FILTER_VALIDATE_URL)) $errors[] = 'App URL must be a valid URL.';
+    if ($next['app_url'] !== '') {
+        $app_host = parse_url($next['app_url'], PHP_URL_HOST);
+        $app_scheme = parse_url($next['app_url'], PHP_URL_SCHEME);
+        $is_local = in_array($app_host, ['localhost', '127.0.0.1', '::1'], true);
+        if (!$is_local && $app_scheme !== 'https') $errors[] = 'App URL must use HTTPS in production.';
+    }
     if ($next['business_logo_url'] !== '' && !filter_var($next['business_logo_url'], FILTER_VALIDATE_URL)) $errors[] = 'Logo URL must be a valid URL.';
     if ($next['currency_symbol'] === '') $errors[] = 'Currency symbol is required.';
     if (!preg_match('/^\+\d{1,4}$/', $next['default_phone_country_code'])) $errors[] = 'Default phone country code must look like +1.';
     if ($next['from_email'] === '' || !is_valid_email($next['from_email'])) $errors[] = 'From email is invalid.';
     if ($next['mail_driver'] === 'smtp' && $next['smtp_host'] === '') $errors[] = 'SMTP host is required when SMTP mail is selected.';
+    if ($next['smtp_host'] !== ''
+        && (strpos($next['smtp_host'], '://') !== false || strpos($next['smtp_host'], '/') !== false
+            || !preg_match('/^[A-Za-z0-9.-]+$/', $next['smtp_host']))) {
+        $errors[] = 'SMTP host must be a hostname only, without protocol or path.';
+    }
 
     if (!$errors) {
         $json = json_encode($next, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
@@ -252,7 +266,7 @@ window.addEventListener('DOMContentLoaded', function () {
         <input name="smtp_username" value="<?= e(settings_string($cfg, 'smtp_username')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
       </label>
       <label>SMTP password
-        <input name="smtp_password" type="password" value="<?= e(settings_string($cfg, 'smtp_password')) ?>" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+        <input name="smtp_password" type="password" value="" placeholder="<?= getenv('BOOKING_SMTP_PASSWORD') !== false ? 'Loaded from environment' : 'Leave blank to keep current password' ?>" autocomplete="new-password" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
       </label>
     </div>
   </section>

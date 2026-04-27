@@ -12,7 +12,7 @@ $biz = business_name();
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Manage booking · <?= e($biz) ?></title>
     <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
-    <meta name="booking-token" content="<?= e($token) ?>">
+    <?php if ($valid): ?><meta name="booking-token" content="<?= e($token) ?>"><?php endif; ?>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
@@ -58,6 +58,6 @@ $biz = business_name();
     <?php endif; ?>
 </main>
 <script src="<?= e(asset('/assets/js/toast.js')) ?>"></script>
-<script src="<?= e(asset('/assets/js/manage.js')) ?>"></script>
+<?php if ($valid): ?><script src="<?= e(asset('/assets/js/manage.js')) ?>"></script><?php endif; ?>
 </body>
 </html>

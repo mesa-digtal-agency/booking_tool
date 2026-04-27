@@ -39,7 +39,7 @@ json_response([
         'price' => (float)$b['price'],
         'staff_id' => (int)$b['staff_id'],
         'staff_name' => $b['staff_name'],
-        'staff_avatar' => $b['staff_avatar'],
+        'staff_avatar' => $b['staff_avatar'] ? basename($b['staff_avatar']) : null,
         'customer_name' => $b['customer_name'],
         'customer_email' => $b['customer_email'],
         'customer_phone' => $b['customer_phone'],

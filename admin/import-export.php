@@ -73,6 +73,9 @@ function read_upload_csv(string $field): ?array {
     if (empty($_FILES[$field]['name'])) return null;
     if ($_FILES[$field]['error'] !== UPLOAD_ERR_OK) return null;
     if ($_FILES[$field]['size'] > 5 * 1024 * 1024) return null;
+    if (!is_uploaded_file((string)$_FILES[$field]['tmp_name'])) return null;
+    $ext = strtolower((string)pathinfo((string)$_FILES[$field]['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'csv') return null;
     $fp = fopen($_FILES[$field]['tmp_name'], 'r');
     if (!$fp) return null;
     $header = fgetcsv($fp);
@@ -81,6 +84,7 @@ function read_upload_csv(string $field): ?array {
     $rows = [];
     while (($r = fgetcsv($fp)) !== false) {
         if (count($r) === 1 && trim($r[0]) === '') continue;
+        if (count($rows) >= 10000) break;
         $rows[] = array_combine($header, array_slice(array_pad($r, count($header), ''), 0, count($header)));
     }
     fclose($fp);
@@ -109,18 +113,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $inserted = 0; $updated = 0; $errors = [];
         foreach ($csv['rows'] as $i => $r) {
-            $name = trim((string)($r['name'] ?? ''));
+            $name = str_in($r, 'name', 120);
             if ($name === '') { $errors[] = "row " . ($i + 2) . ": missing name"; continue; }
             $duration = (int)($r['duration_minutes'] ?? 0);
             if ($duration < 5) { $errors[] = "row " . ($i + 2) . ": invalid duration"; continue; }
+            $image = trim((string)($r['image'] ?? ''));
+            if ($image !== '') {
+                $image = basename(str_replace('\\', '/', $image));
+                if (!preg_match('/^[A-Za-z0-9._-]+\.(jpe?g|png|webp)$/i', $image)) {
+                    $errors[] = "row " . ($i + 2) . ": invalid image filename";
+                    continue;
+                }
+            }
             $data = [
                 $name,
-                (string)($r['description'] ?? ''),
-                (string)($r['category'] ?? ''),
+                str_in($r, 'description', 1000),
+                str_in($r, 'category', 80),
                 $duration,
-                (float)($r['price'] ?? 0),
+                max(0, (float)($r['price'] ?? 0)),
                 (int)(!empty($r['is_active']) && $r['is_active'] !== '0' ? 1 : 0),
-                trim((string)($r['image'] ?? '')) ?: null,
+                $image !== '' ? $image : null,
             ];
             $existing = db_fetch("SELECT id FROM services WHERE LOWER(name) = LOWER(?)", [$name]);
             if ($existing) {
@@ -142,13 +154,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inserted = 0; $updated = 0; $errors = [];
         $reset_links = [];
         foreach ($csv['rows'] as $i => $r) {
-            $email = strtolower(trim((string)($r['email'] ?? '')));
-            $name  = trim((string)($r['name'] ?? ''));
+            $email = strtolower(str_in($r, 'email', 190));
+            $name  = str_in($r, 'name', 120);
             if ($name === '' || !is_valid_email($email)) {
                 $errors[] = "row " . ($i + 2) . ": missing name or invalid email";
                 continue;
             }
-            $phone = trim((string)($r['phone'] ?? ''));
+            $phone = str_in($r, 'phone', 40);
+            if ($phone !== '' && !is_valid_phone($phone)) {
+                $errors[] = "row " . ($i + 2) . ": invalid phone";
+                continue;
+            }
             $role  = (($r['role'] ?? 'staff') === 'admin') ? 'admin' : 'staff';
             $is_active = (int)(!empty($r['is_active']) && $r['is_active'] !== '0' ? 1 : 0);
             $existing = db_fetch("SELECT id FROM staff WHERE email = ?", [$email]);
@@ -197,21 +213,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($csv['rows'] as $i => $r) {
             $svc_name = strtolower(trim((string)($r['service_name'] ?? '')));
             $st_name  = strtolower(trim((string)($r['staff_name'] ?? '')));
-            $date     = trim((string)($r['booking_date'] ?? ''));
-            $start    = normalize_time(trim((string)($r['start_time'] ?? ''))) ?? '';
-            $end      = normalize_time(trim((string)($r['end_time'] ?? ''))) ?? '';
+            $date     = str_in($r, 'booking_date', 10);
+            $start    = normalize_time(str_in($r, 'start_time', 8)) ?? '';
+            $end      = normalize_time(str_in($r, 'end_time', 8)) ?? '';
             $status   = in_array(($r['status'] ?? 'pending'), booking_all_statuses(), true)
                         ? $r['status'] : 'pending';
-            $name     = trim((string)($r['customer_name'] ?? ''));
-            $email    = strtolower(trim((string)($r['customer_email'] ?? '')));
-            $phone    = trim((string)($r['customer_phone'] ?? ''));
-            $notes    = (string)($r['notes'] ?? '');
+            $name     = str_in($r, 'customer_name', 120);
+            $email    = strtolower(str_in($r, 'customer_email', 190));
+            $phone    = str_in($r, 'customer_phone', 40);
+            $notes    = str_in($r, 'notes', 1000);
 
             if (!isset($svc_map[$svc_name]))   { $errors[] = "row " . ($i + 2) . ": unknown service '$svc_name'"; continue; }
             if (!isset($staff_map[$st_name]))  { $errors[] = "row " . ($i + 2) . ": unknown staff '$st_name'"; continue; }
             if (!is_valid_date($date))         { $errors[] = "row " . ($i + 2) . ": invalid date"; continue; }
             if (!is_valid_time($start) || !is_valid_time($end)) { $errors[] = "row " . ($i + 2) . ": invalid times"; continue; }
+            if (time_to_minutes($end) <= time_to_minutes($start)) { $errors[] = "row " . ($i + 2) . ": end_time must be after start_time"; continue; }
             if ($name === '')                  { $errors[] = "row " . ($i + 2) . ": missing customer_name"; continue; }
+            if ($email !== '' && !is_valid_email($email)) { $errors[] = "row " . ($i + 2) . ": invalid customer_email"; continue; }
+            if ($phone !== '' && !is_valid_phone($phone)) { $errors[] = "row " . ($i + 2) . ": invalid customer_phone"; continue; }
 
             $token = uuid_v4();
             $id = (int)($r['id'] ?? 0);

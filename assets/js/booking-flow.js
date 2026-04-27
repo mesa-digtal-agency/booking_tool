@@ -298,12 +298,13 @@
         ...state.details,
       };
       const { booking, management_url } = await api('/api/bookings.php', { method: 'POST', body: payload });
+      const managementUrl = escapeHtml(management_url);
       document.getElementById('successDetails').innerHTML = `
         <div class="flex items-center justify-between"><div class="text-neutral-500">Service</div><div>${escapeHtml(booking.service_name)}</div></div>
         <div class="flex items-center justify-between"><div class="text-neutral-500">With</div><div>${escapeHtml(booking.staff_name)}</div></div>
         <div class="flex items-center justify-between"><div class="text-neutral-500">When</div><div>${fmtDateHuman(booking.booking_date)} at ${fmtTime(booking.start_time)}</div></div>
         <div class="flex items-center justify-between"><div class="text-neutral-500">Total</div><div>${fmtMoney(booking.price)}</div></div>
-        <div class="mt-3 text-xs text-neutral-500 break-all">Manage your booking: <a href="${management_url}" class="underline">${management_url}</a></div>`;
+        <div class="mt-3 text-xs text-neutral-500 break-all">Manage your booking: <a href="${managementUrl}" class="underline">${managementUrl}</a></div>`;
       document.getElementById('cart').classList.add('hidden');
       window.toast && window.toast('Booking confirmed — check your email.', { type: 'success' });
       showStep('success');

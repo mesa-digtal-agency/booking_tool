@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $step = 'done';
             } catch (Throwable $e) {
                 error_log('Setup failed: ' . $e->getMessage());
-                $errors[] = 'Setup failed: ' . $e->getMessage();
+                $errors[] = 'Setup failed. Check the server error log for details.';
             }
         }
     }
@@ -141,7 +141,7 @@ function create_first_admin(string $name, string $email, string $password): void
 function render_form(array $errors, array $notices): string {
     $cfg = $GLOBALS['CONFIG'];
     $csrf = $_SESSION['_csrf_setup'];
-    $db = e($cfg['db_type']) . ($cfg['db_type'] === 'sqlite' ? ' (' . e($cfg['db_path']) . ')' : ' (' . e($cfg['db_host']) . '/' . e($cfg['db_name']) . ')');
+    $db = $cfg['db_type'] === 'mysql' ? 'MySQL' : 'SQLite';
     $err_html = '';
     if ($errors) {
         $err_html = '<div class="alert err"><ul>';
@@ -154,7 +154,7 @@ function render_form(array $errors, array $notices): string {
     return '
     <div class="box">
         <h1>Install ' . e(business_name()) . '</h1>
-        <p class="muted">Database: <code>' . $db . '</code></p>
+        <p class="muted">Database: <code>' . e($db) . '</code></p>
         ' . $err_html . $note_html . '
         <form method="post">
             <input type="hidden" name="_csrf" value="' . e($csrf) . '">

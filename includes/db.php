@@ -46,7 +46,7 @@ function db(): PDO {
     } catch (Throwable $e) {
         http_response_code(500);
         error_log('DB connection failed: ' . $e->getMessage());
-        exit('Database unavailable. Please check config.json and run setup.php.');
+        exit('Database unavailable. Please contact the site administrator.');
     }
     return $pdo;
 }

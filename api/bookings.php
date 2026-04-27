@@ -142,7 +142,7 @@ function format_booking_for_api(array $b): array {
         'service_name' => $b['service_name'],
         'staff_id' => (int)$b['staff_id'],
         'staff_name' => $b['staff_name'],
-        'staff_avatar' => $b['staff_avatar'],
+        'staff_avatar' => $b['staff_avatar'] ? basename($b['staff_avatar']) : null,
         'customer_name' => $b['customer_name'],
         'customer_email' => $b['customer_email'],
         'customer_phone' => $b['customer_phone'],
@@ -153,6 +153,5 @@ function format_booking_for_api(array $b): array {
         'duration_minutes' => (int)$b['duration_minutes'],
         'price' => (float)$b['price'],
         'status' => $b['status'],
-        'management_token' => $b['management_token'],
     ];
 }

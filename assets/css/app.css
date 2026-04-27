@@ -81,6 +81,16 @@ a:hover { transition: color .15s ease; }
 nav.overflow-y-auto::-webkit-scrollbar { width: 6px; }
 nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
 
+/* Admin data tables should stay usable on phones instead of forcing the
+   whole page wider than the viewport. */
+.admin-main .overflow-hidden:has(> table) {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.admin-main table {
+    min-width: 720px;
+}
+
 /* ---------- Settings color picker ---------------------------------- */
 .settings-color-picker {
     min-width: 0;

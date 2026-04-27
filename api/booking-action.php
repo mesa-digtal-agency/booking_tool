@@ -67,7 +67,7 @@ if ($action === 'reschedule') {
         }
 
         foreach ($candidates as $candidate_staff_id) {
-            if (!staff_can_take_slot($candidate_staff_id, $new_date, $new_time, $end_time)) {
+            if (!staff_can_take_slot($candidate_staff_id, (int)$locked['service_id'], $new_date, $new_time, $end_time)) {
                 continue;
             }
 
@@ -110,9 +110,10 @@ if ($action === 'reschedule') {
          FROM bookings b
          JOIN services s ON s.id = b.service_id
          JOIN staff st   ON st.id = b.staff_id
-         WHERE b.id = ?",
+        WHERE b.id = ?",
         [(int)$b['id']]
     );
+    if (!$b) json_error('Booking not found.', 404);
 
     send_action_email('reschedule', $b);
 
@@ -120,16 +121,21 @@ if ($action === 'reschedule') {
 }
 
 if ($action === 'cancel') {
-    db_exec("UPDATE bookings SET status = 'cancelled' WHERE id = ?", [(int)$b['id']]);
+    $updated = db_exec(
+        "UPDATE bookings SET status = 'cancelled' WHERE id = ? AND status IN ('confirmed','pending')",
+        [(int)$b['id']]
+    );
+    if ($updated <= 0) json_error('Booking is already changed.', 409);
     $b = db_fetch(
         "SELECT b.*, s.name AS service_name, s.duration_minutes, s.price,
                 st.name AS staff_name
          FROM bookings b
          JOIN services s ON s.id = b.service_id
          JOIN staff st   ON st.id = b.staff_id
-         WHERE b.id = ?",
+        WHERE b.id = ?",
         [(int)$b['id']]
     );
+    if (!$b) json_error('Booking not found.', 404);
     send_action_email('cancel', $b);
     json_response(['ok' => true, 'booking' => public_booking_shape($b)]);
 }
@@ -148,7 +154,9 @@ function send_action_email(string $action, array $b): void {
     @send_mail($b['customer_email'], $subject, $html);
 }
 
-function staff_can_take_slot(int $staff_id, string $date, string $start, string $end): bool {
+function staff_can_take_slot(int $staff_id, int $service_id, string $date, string $start, string $end): bool {
+    if (!staff_performs_service($staff_id, $service_id)) return false;
+
     $dt = DateTime::createFromFormat('Y-m-d', $date);
     if (!$dt) return false;
 

@@ -100,7 +100,13 @@ function str_in(array $arr, string $key, int $max = 500): string {
     $v = $arr[$key] ?? '';
     if (!is_string($v) && !is_numeric($v)) return '';
     $v = trim((string)$v);
-    if ($max > 0 && mb_strlen($v) > $max) $v = mb_substr($v, 0, $max);
+    if ($max > 0) {
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($v) > $max) $v = mb_substr($v, 0, $max);
+        } elseif (strlen($v) > $max) {
+            $v = substr($v, 0, $max);
+        }
+    }
     return $v;
 }
 
@@ -204,7 +210,8 @@ function app_url(string $path = ''): string {
     if ($base === '') {
         // Fallback to current scheme/host if app_url not set.
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $host = preg_replace('/[^A-Za-z0-9.\-:\[\]]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+        if ($host === '') $host = 'localhost';
         $base = $scheme . '://' . $host;
     }
     if ($path !== '' && $path[0] !== '/') $path = '/' . $path;
@@ -330,19 +337,39 @@ function asset(string $path): string {
     return $path . $sep . 'v=' . asset_version();
 }
 
+/** Best-effort MIME sniffing for uploaded files. */
+function uploaded_file_mime(array $file): string {
+    $tmp = (string)($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) return '';
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $mime = (string)finfo_file($finfo, $tmp);
+            finfo_close($finfo);
+            return $mime;
+        }
+    }
+    return function_exists('mime_content_type') ? (string)mime_content_type($tmp) : '';
+}
+
 /**
  * Resize and save an uploaded image to improve loading time.
  *
  * Falls back to move_uploaded_file() if GD is unavailable.
  */
 function save_uploaded_image(array $file, string $dest_dir, string $filename, int $max_w, int $max_h): bool {
+    if (empty($file['tmp_name']) || !is_uploaded_file((string)$file['tmp_name'])) {
+        return false;
+    }
     if (!is_dir($dest_dir) && !@mkdir($dest_dir, 0775, true) && !is_dir($dest_dir)) {
         return false;
     }
 
     $dest = rtrim($dest_dir, '/\\') . DIRECTORY_SEPARATOR . $filename;
     if (!function_exists('imagecreatefromstring') || !function_exists('getimagesize')) {
-        return move_uploaded_file($file['tmp_name'], $dest);
+        $ok = move_uploaded_file($file['tmp_name'], $dest);
+        if ($ok) @chmod($dest, 0644);
+        return $ok;
     }
 
     $info = @getimagesize($file['tmp_name']);
@@ -389,6 +416,7 @@ function save_uploaded_image(array $file, string $dest_dir, string $filename, in
 
     imagedestroy($dst);
     imagedestroy($src);
+    if ($ok) @chmod($dest, 0644);
     return $ok;
 }
 
@@ -399,6 +427,9 @@ function save_uploaded_image(array $file, string $dest_dir, string $filename, in
  * resizing. Square sources are resized directly to the target dimensions.
  */
 function save_uploaded_square_image(array $file, string $dest_dir, string $filename, int $size): bool {
+    if (empty($file['tmp_name']) || !is_uploaded_file((string)$file['tmp_name'])) {
+        return false;
+    }
     if (!is_dir($dest_dir) && !@mkdir($dest_dir, 0775, true) && !is_dir($dest_dir)) {
         return false;
     }
@@ -463,6 +494,7 @@ function save_uploaded_square_image(array $file, string $dest_dir, string $filen
 
     imagedestroy($dst);
     imagedestroy($src);
+    if ($ok) @chmod($dest, 0644);
     return $ok;
 }
 

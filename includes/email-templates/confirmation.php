@@ -2,7 +2,6 @@
 /** @var array $booking */
 /** @var string $management_url */
 $biz = business_name();
-$logo = (string)($GLOBALS['CONFIG']['business_logo_url'] ?? '');
 $primary = primary_color();
 $date_h = (new DateTime($booking['booking_date']))->format('l, F j, Y');
 ?>

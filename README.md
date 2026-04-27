@@ -28,7 +28,6 @@ a single `config.json` — no Composer, no npm, no build step.
 | `/admin/reset-password.php?token=...` | Set a new password. |
 | `/admin/...` | Admin pages: dashboard, calendar, bookings, services, staff, working hours, blocked slots. |
 | `/api/...` | REST endpoints (see below). |
-| `/api-test.html` | Developer test harness — static HTML + `/api/csrf.php`. Safe to delete in production. |
 
 ---
 
@@ -39,8 +38,8 @@ a single `config.json` — no Composer, no npm, no build step.
 Upload the entire folder to your web host's document root (e.g. `public_html/`).
 Make sure your host runs PHP 7.4 or newer and has the `pdo_sqlite` (or `pdo_mysql`) extension.
 
-The `/data` and `/assets/avatars` directories must be writable by the PHP process
-(typically `chmod 775`).
+The `/data`, `/assets/avatars`, and `/assets/services` directories must be
+writable by the PHP process (typically `chmod 775`).
 
 ### 2. Create your `config.json`
 
@@ -54,6 +53,14 @@ Then edit `config.json`. At minimum set:
 - `from_email`, `from_name`
 - If using MySQL: `db_type` = `"mysql"` plus `db_host`, `db_name`, `db_user`, `db_password`
 - If using SMTP: `mail_driver` = `"smtp"` plus `smtp_host`, `smtp_port`, `smtp_username`, `smtp_password`, `smtp_encryption`
+
+For production, prefer environment variables for secrets instead of storing
+passwords in `config.json`. Supported overrides include:
+
+- `BOOKING_DB_TYPE`, `BOOKING_DB_PATH`, `BOOKING_DB_HOST`, `BOOKING_DB_PORT`, `BOOKING_DB_NAME`, `BOOKING_DB_USER`, `BOOKING_DB_PASSWORD`
+- `BOOKING_APP_URL`
+- `BOOKING_MAIL_DRIVER`, `BOOKING_SMTP_HOST`, `BOOKING_SMTP_PORT`, `BOOKING_SMTP_USERNAME`, `BOOKING_SMTP_PASSWORD`, `BOOKING_SMTP_ENCRYPTION`
+- `BOOKING_FROM_EMAIL`, `BOOKING_FROM_NAME`
 
 The SQLite default (`data/booking.sqlite`) requires no further setup — PHP will
 create the file on first run.
@@ -86,12 +93,18 @@ You can now log in at `/admin/login.php`.
 | `logo_path` | Local SVG/PNG path (relative to project root, e.g. `assets/img/logo.svg`) |
 | `logo_mode` | `logo_and_name` (default) or `logo_only` — controls sidebar layout |
 | `app_url` | Public base URL — used to build absolute management links |
-| `primary_color` | Brand accent color (hex) |
+| `primary_color`, `accent_color` | Brand and UI accent colors (hex) |
+| `dark_mode` | `true` or `false` for the admin theme |
+| `show_import_export`, `show_settings_page` | Show/hide admin utility pages |
 | `mail_driver` | `"mail"` (PHP `mail()`) or `"smtp"` |
 | `smtp_host` / `smtp_port` / `smtp_username` / `smtp_password` / `smtp_encryption` | SMTP settings (`tls`, `ssl`, or empty) |
 | `from_email`, `from_name` | Outgoing email identity |
 | `slot_interval_minutes` | Booking slot grid step (15 or 30 recommended) |
+| `admin_rows_per_page` | Pagination size for admin tables |
 | `time_format` | `"24h"` (default, e.g. `14:30`) or `"12h"` (e.g. `2:30 PM`) |
+
+Environment variables with the `BOOKING_` prefix override matching values from
+`config.json` at runtime. This is recommended for database and SMTP passwords.
 
 ---
 
@@ -130,10 +143,11 @@ exposed via the `<meta name="csrf-token">` tag on `/` and `/manage-booking.php`)
 - **"Missing config.json"** — copy `config.example.json` to `config.json`.
 - **"Database unavailable"** — check `db_*` settings and that `/data` is writable (for SQLite).
 - **Emails aren't sending with `mail()`** — most shared hosts restrict `mail()` senders. Switch to SMTP.
+- **Poor email deliverability** — configure SPF, DKIM, and DMARC for the sending domain before going live.
 - **`setup.php` says setup already complete** — expected. Delete the file; use `/admin/login.php`.
 - **Nginx users** — add the equivalent of the Apache rules in `.htaccess`:
   ```
-  location ~ /(config\.json|config\.example\.json|schema\.sql|\.gitignore)$ { deny all; return 404; }
+  location ~ /(config\.json|config\.example\.json|schema\.sql|README\.md|\.gitignore|\.env)$ { deny all; return 404; }
   location ~ \.(sqlite|sqlite-journal|db)$ { deny all; return 404; }
   location ^~ /data/ { deny all; return 404; }
   location ^~ /includes/ { deny all; return 404; }

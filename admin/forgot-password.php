@@ -11,13 +11,21 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $email = strtolower(str_in($_POST, 'email', 190));
+    $now = time();
+    $bucket = &$_SESSION['password_reset_attempts'];
+    if (!is_array($bucket ?? null)) $bucket = [];
+    $bucket = array_values(array_filter($bucket, fn($ts) => (int)$ts > $now - 3600));
     if (!is_valid_email($email)) {
         $errors[] = 'Please enter a valid email address.';
+    } elseif (count($bucket) >= 8) {
+        $sent = true;
     } else {
+        $bucket[] = $now;
         // Lookup silently — never reveal whether an account exists.
         $staff = db_fetch("SELECT id, name, email FROM staff WHERE email = ? AND is_active = 1", [$email]);
         if ($staff) {
-            // Throttle: allow one active token per 5 minutes per account.
+            // Per-account throttle; the session bucket above also limits
+            // anonymous enumeration and reset-email abuse.
             $recent = (int)db_scalar(
                 "SELECT COUNT(*) FROM password_resets WHERE staff_id = ? AND created_at >= ?",
                 [(int)$staff['id'], gmdate('Y-m-d H:i:s', time() - 300)]

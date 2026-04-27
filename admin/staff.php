@@ -77,16 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($file['size'] > 5 * 1024 * 1024) {
             $errors[] = 'Avatar must be under 5 MB.';
         } else {
-            $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
-            $mime = $finfo ? finfo_file($finfo, $file['tmp_name']) : mime_content_type($file['tmp_name']);
-            if ($finfo) finfo_close($finfo);
+            $mime = uploaded_file_mime($file);
             $ext_map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
             if (!isset($ext_map[$mime])) {
                 $errors[] = 'Avatar must be JPG, PNG, or WEBP.';
             } else {
                 $ext = $ext_map[$mime];
                 $new = 'staff_' . ($editing['id'] ?? 'new') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-                $dest = APP_ROOT . '/assets/avatars/' . $new;
                 if (!save_uploaded_image($file, APP_ROOT . '/assets/avatars', $new, 256, 256)) {
                     $errors[] = 'Could not save avatar.';
                 } else {
@@ -177,7 +174,7 @@ admin_header();
       </label>
       <label class="text-sm block">Avatar
         <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp" class="mt-1 w-full text-sm">
-        <?php if (!empty($editing['avatar'])): ?><div class="mt-2"><img src="/assets/avatars/<?= e($editing['avatar']) ?>" class="w-14 h-14 rounded-full object-cover"></div><?php endif; ?>
+        <?php if (!empty($editing['avatar'])): ?><div class="mt-2"><img src="/assets/avatars/<?= e(basename($editing['avatar'])) ?>" class="w-14 h-14 rounded-full object-cover"></div><?php endif; ?>
       </label>
     </div>
     <label class="text-sm inline-flex items-center gap-2"><input type="checkbox" name="is_active" <?= (int)($editing['is_active'] ?? 1)===1?'checked':'' ?>> Active</label>
@@ -206,7 +203,7 @@ admin_header();
       <tr class="border-t border-neutral-100">
         <td class="px-3 py-2">
           <?php if (!empty($s['avatar'])): ?>
-            <img src="/assets/avatars/<?= e($s['avatar']) ?>" class="w-8 h-8 rounded-full object-cover">
+            <img src="/assets/avatars/<?= e(basename($s['avatar'])) ?>" class="w-8 h-8 rounded-full object-cover">
           <?php else: ?>
             <div class="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs"><?= e(strtoupper(substr($s['name'],0,2))) ?></div>
           <?php endif; ?>

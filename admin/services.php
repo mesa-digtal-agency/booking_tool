@@ -72,9 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($file['size'] > 5 * 1024 * 1024) {
             $errors[] = 'Image must be under 5 MB.';
         } else {
-            $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
-            $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : mime_content_type($file['tmp_name']);
-            if ($finfo) finfo_close($finfo);
+            $mime = uploaded_file_mime($file);
             $ext_map = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
             if (!isset($ext_map[$mime])) {
                 $errors[] = 'Image must be JPG, PNG, or WEBP.';
@@ -166,7 +164,7 @@ admin_header();
       <div class="text-neutral-500 mb-1">Image <span class="text-neutral-400">(optional, shown on the booking page, max 160×160)</span></div>
       <div class="flex items-start gap-3">
         <?php if (!empty($editing['image'])): ?>
-          <img src="/assets/services/<?= e($editing['image']) ?>" alt="" class="w-20 h-20 rounded-lg object-cover border border-neutral-200">
+          <img src="/assets/services/<?= e(basename($editing['image'])) ?>" alt="" class="w-20 h-20 rounded-lg object-cover border border-neutral-200">
         <?php else: ?>
           <div class="w-20 h-20 rounded-lg bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-400 text-xs">No image</div>
         <?php endif; ?>
@@ -217,7 +215,7 @@ admin_header();
       <tr class="border-t border-neutral-100">
         <td class="px-3 py-2">
           <?php if (!empty($s['image'])): ?>
-            <img src="/assets/services/<?= e($s['image']) ?>" alt="" class="w-10 h-10 rounded-lg object-cover">
+            <img src="/assets/services/<?= e(basename($s['image'])) ?>" alt="" class="w-10 h-10 rounded-lg object-cover">
           <?php else: ?>
             <div class="w-10 h-10 rounded-lg bg-neutral-100"></div>
           <?php endif; ?>

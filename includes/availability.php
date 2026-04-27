@@ -31,6 +31,17 @@ function staff_for_service(int $service_id): array {
     );
 }
 
+function staff_performs_service(int $staff_id, int $service_id): bool {
+    return (bool)db_scalar(
+        "SELECT 1
+         FROM staff_services ss
+         JOIN staff s ON s.id = ss.staff_id
+         WHERE ss.staff_id = ? AND ss.service_id = ? AND s.is_active = 1
+         LIMIT 1",
+        [$staff_id, $service_id]
+    );
+}
+
 /** Working hours for staff on a given day_of_week (0=Sun..6=Sat). */
 function working_hours(int $staff_id, int $dow): ?array {
     return db_fetch(
@@ -69,6 +80,7 @@ function busy_intervals(int $staff_id, string $date): array {
 function compute_slots_for_staff(int $staff_id, int $service_id, string $date): array {
     $svc = get_service($service_id);
     if (!$svc) return [];
+    if (!staff_performs_service($staff_id, $service_id)) return [];
     $duration = (int)$svc['duration_minutes'];
     if ($duration <= 0) return [];
 

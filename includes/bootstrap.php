@@ -72,6 +72,30 @@ function load_config(): array {
         'bookings_per_page' => 25,
         'time_format' => '24h',
     ];
+    $env_map = [
+        'BOOKING_DB_TYPE' => 'db_type',
+        'BOOKING_DB_PATH' => 'db_path',
+        'BOOKING_DB_HOST' => 'db_host',
+        'BOOKING_DB_PORT' => 'db_port',
+        'BOOKING_DB_NAME' => 'db_name',
+        'BOOKING_DB_USER' => 'db_user',
+        'BOOKING_DB_PASSWORD' => 'db_password',
+        'BOOKING_APP_URL' => 'app_url',
+        'BOOKING_MAIL_DRIVER' => 'mail_driver',
+        'BOOKING_SMTP_HOST' => 'smtp_host',
+        'BOOKING_SMTP_PORT' => 'smtp_port',
+        'BOOKING_SMTP_USERNAME' => 'smtp_username',
+        'BOOKING_SMTP_PASSWORD' => 'smtp_password',
+        'BOOKING_SMTP_ENCRYPTION' => 'smtp_encryption',
+        'BOOKING_FROM_EMAIL' => 'from_email',
+        'BOOKING_FROM_NAME' => 'from_name',
+    ];
+    foreach ($env_map as $env => $key) {
+        $value = getenv($env);
+        if ($value !== false && $value !== '') {
+            $cfg[$key] = in_array($key, ['db_port', 'smtp_port'], true) ? (int)$value : $value;
+        }
+    }
     return $cfg;
 }
 
@@ -81,8 +105,15 @@ $GLOBALS['CONFIG'] = $CONFIG;
 // Timezone
 @date_default_timezone_set($CONFIG['business_timezone'] ?: 'UTC');
 
+if (!headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
 // Session config (secure defaults, SameSite=Lax)
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
     session_set_cookie_params([
