@@ -118,7 +118,7 @@ $timezones = timezone_identifiers_list();
 $current_tz = settings_string($cfg, 'business_timezone', 'UTC');
 $settings_primary_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'primary_color')) ? settings_string($cfg, 'primary_color') : primary_color();
 $settings_accent_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'accent_color')) ? settings_string($cfg, 'accent_color') : accent_color();
-$settings_color_palette = ['#be123c', '#f05c4f', '#f97316', '#d97706', '#65a30d', '#059669', '#0284c7', '#2563eb', '#7c3aed', '#8b5cf6', '#374151', '#000000'];
+$settings_color_palette = ['#f43f5e', '#f87171', '#fb923c', '#e3c835', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#a78bfa', '#64748b', '#111827'];
 
 admin_header();
 ?>

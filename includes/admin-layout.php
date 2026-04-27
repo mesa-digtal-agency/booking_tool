@@ -41,17 +41,17 @@ function render_sidebar_logo(): string {
     if ($mode === 'logo_only' && $logo) {
         // Full sidebar width within the sidebar's inner padding (p-4), so
         // the image breathes on the sides. No business-name text.
-        return '<div class="mb-5 flex items-center justify-center px-3 py-2">
+        return '<a href="/admin/index.php" class="mb-5 flex items-center justify-center px-3 py-2 rounded-xl" aria-label="Dashboard">
                     <img src="' . e($logo) . '" alt="' . e($biz) . '" class="block w-full h-auto">
-                </div>';
+                </a>';
     }
     $img = $logo
         ? '<img src="' . e($logo) . '" alt="" class="w-9 h-9 object-contain rounded-lg flex-shrink-0">'
         : '<div class="w-9 h-9 rounded-full flex-shrink-0" style="background:' . e($primary) . '"></div>';
-    return '<div class="flex items-center gap-2.5 px-3 py-2 mb-5 rounded-xl">
+    return '<a href="/admin/index.php" class="flex items-center gap-2.5 px-3 py-2 mb-5 rounded-xl" aria-label="Dashboard">
                 ' . $img . '
                 <div class="font-semibold text-sm truncate">' . e($biz) . '</div>
-            </div>';
+            </a>';
 }
 
 function admin_header(): void {
