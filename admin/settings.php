@@ -74,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $next['logo_mode'] = in_array(($_POST['logo_mode'] ?? ''), ['logo_and_name', 'logo_only'], true) ? $_POST['logo_mode'] : 'logo_and_name';
     $next['primary_color'] = normalize_hex_color((string)($_POST['primary_color'] ?? ''), primary_color());
     $next['accent_color'] = normalize_hex_color((string)($_POST['accent_color'] ?? ''), $next['primary_color']);
+    $next['font_family'] = in_array(($_POST['font_family'] ?? ''), app_font_options(), true) ? $_POST['font_family'] : 'Open Sans';
     $next['dark_mode'] = post_bool('dark_mode');
     $next['show_import_export'] = post_bool('show_import_export');
     $next['show_settings_page'] = post_bool('show_settings_page');
@@ -132,7 +133,10 @@ $timezones = timezone_identifiers_list();
 $current_tz = settings_string($cfg, 'business_timezone', 'UTC');
 $settings_primary_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'primary_color')) ? settings_string($cfg, 'primary_color') : primary_color();
 $settings_accent_color = preg_match('/^#[0-9a-f]{6}$/i', settings_string($cfg, 'accent_color')) ? settings_string($cfg, 'accent_color') : accent_color();
-$settings_color_palette = ['#f43f5e', '#f87171', '#fb923c', '#e3c835', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#a78bfa', '#64748b', '#111827'];
+$settings_color_palette = ['#f43f5e', '#f87171', '#fb923c', '#e3c835', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#7c3aed', '#a78bfa', '#64748b', '#111827'];
+$settings_font = in_array(settings_string($cfg, 'font_family', 'Open Sans'), app_font_options(), true)
+    ? settings_string($cfg, 'font_family', 'Open Sans')
+    : 'Open Sans';
 
 admin_header();
 ?>
@@ -199,6 +203,13 @@ window.addEventListener('DOMContentLoaded', function () {
         <select name="logo_mode" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
           <option value="logo_and_name" <?= settings_string($cfg, 'logo_mode', 'logo_and_name') === 'logo_and_name' ? 'selected' : '' ?>>Logo and name</option>
           <option value="logo_only" <?= settings_string($cfg, 'logo_mode', 'logo_and_name') === 'logo_only' ? 'selected' : '' ?>>Logo only</option>
+        </select>
+      </label>
+      <label>System font
+        <select name="font_family" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
+          <?php foreach (app_font_options() as $font): ?>
+            <option value="<?= e($font) ?>" <?= $settings_font === $font ? 'selected' : '' ?>><?= e($font) ?></option>
+          <?php endforeach; ?>
         </select>
       </label>
       <label class="flex items-center gap-2 mt-7">

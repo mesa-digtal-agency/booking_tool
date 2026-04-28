@@ -5,6 +5,8 @@ $token = (string)($_GET['token'] ?? '');
 $valid = (bool)preg_match('/^[0-9a-f-]{36}$/', $token);
 $primary = primary_color();
 $biz = business_name();
+$font_stack = app_font_stack();
+$font_url = app_font_stylesheet_url();
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -17,7 +19,11 @@ $biz = business_name();
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="<?= e($font_url) ?>">
     <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
+    <style>:root{--primary-color: <?= e($primary) ?>;--app-font-family: <?= $font_stack ?>;}</style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900"
       data-time-format="<?= e(time_format()) ?>"

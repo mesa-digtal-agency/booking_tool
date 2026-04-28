@@ -235,6 +235,35 @@ function accent_color(): string {
     return preg_match('/^#[0-9a-f]{6}$/i', $c) ? $c : primary_color();
 }
 
+/** Website font choices from Figma's top website-font list. */
+function app_font_options(): array {
+    return [
+        'Roboto',
+        'Open Sans',
+        'Rubik',
+        'Poppins',
+        'Nunito',
+    ];
+}
+
+/** Configured application font, constrained to known supported choices. */
+function app_font_name(): string {
+    $font = (string)($GLOBALS['CONFIG']['font_family'] ?? 'Open Sans');
+    return in_array($font, app_font_options(), true) ? $font : 'Open Sans';
+}
+
+/** CSS font stack for the configured application font. */
+function app_font_stack(): string {
+    $font = app_font_name();
+    return "'" . str_replace("'", "\\'", $font) . "', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+}
+
+/** Google Fonts stylesheet URL for the configured application font. */
+function app_font_stylesheet_url(): string {
+    $family = str_replace('%20', '+', rawurlencode(app_font_name()));
+    return 'https://fonts.googleapis.com/css2?family=' . $family . ':wght@400;500;600;700&display=swap';
+}
+
 /** Config booleans may come from JSON booleans or string-ish values. */
 function config_bool(string $key, bool $default = false): bool {
     $v = $GLOBALS['CONFIG'][$key] ?? $default;

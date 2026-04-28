@@ -99,6 +99,10 @@
         el.classList.add('border-neutral-200');
       }
     });
+    if (typeof n === 'number') {
+      const activeStep = document.querySelector(`#steps .step[data-step="${n}"]`);
+      if (activeStep) activeStep.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }
     updateCart();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -155,7 +159,7 @@
     }
   }
 
-  // Step 2: Professionals
+  // Step 2: Stylists
   async function loadStaff() {
     const el = document.getElementById('staffList');
     el.innerHTML = '<div class="text-neutral-400 text-sm col-span-full">Loading…</div>';
@@ -163,14 +167,14 @@
       const { staff } = await api(`/api/staff.php?service_id=${state.service.id}`);
       el.innerHTML = '';
       // "Any" card
-      const anyBtn = pickStaffCard({ id: 'any', name: 'Any professional', avatar: null, subtitle: 'Maximum availability' });
+      const anyBtn = pickStaffCard({ id: 'any', name: 'Any stylist', avatar: null, subtitle: 'Maximum availability' });
       el.appendChild(anyBtn);
       staff.forEach(s => el.appendChild(pickStaffCard(s)));
       if (!staff.length) {
-        el.innerHTML += '<div class="col-span-full text-sm text-neutral-500">No professionals currently perform this service.</div>';
+        el.innerHTML += '<div class="col-span-full text-sm text-neutral-500">No stylists currently perform this service.</div>';
       }
     } catch (e) {
-      el.innerHTML = `<div class="text-red-600 text-sm col-span-full">Could not load professionals.</div>`;
+      el.innerHTML = `<div class="text-red-600 text-sm col-span-full">Could not load stylists.</div>`;
     }
   }
 
@@ -276,7 +280,7 @@
       : '';
     r.innerHTML = imgRow + `
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Service</div><div class="font-medium">${escapeHtml(state.service.name)}</div></div>
-      <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Professional</div><div class="font-medium">${state.staff ? escapeHtml(state.staff.name) : 'Any available'}</div></div>
+      <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Stylist</div><div class="font-medium">${state.staff ? escapeHtml(state.staff.name) : 'Any available'}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Date</div><div class="font-medium">${fmtDateHuman(state.date)}</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Time</div><div class="font-medium">${fmtTime(state.time)} (${fmtMinutes(state.service.duration_minutes)})</div></div>
       <div class="flex items-center justify-between"><div class="text-neutral-500 text-sm">Name</div><div class="font-medium">${escapeHtml(state.details.customer_name)}</div></div>

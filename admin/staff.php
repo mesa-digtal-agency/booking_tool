@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/admin-layout.php';
+require_once __DIR__ . '/../includes/availability.php';
 
 require_admin();
 $page_title = 'Staff';
@@ -141,6 +142,45 @@ $total_pages = max(1, (int)ceil($total_rows / $per_page));
 if ($page > $total_pages) $page = $total_pages;
 $offset = ($page - 1) * $per_page;
 $all = db_all("SELECT s.*, (SELECT COUNT(*) FROM staff_services ss WHERE ss.staff_id = s.id) AS svc_count FROM staff s ORDER BY is_active DESC, name LIMIT $per_page OFFSET $offset");
+$visible_staff_ids = array_map(fn($s) => (int)$s['id'], $all);
+$blocked_now_ids = [];
+$in_booking_now_ids = [];
+if ($visible_staff_ids) {
+    $today = business_today();
+    $now_time = business_now()->format('H:i');
+    $placeholders = implode(',', array_fill(0, count($visible_staff_ids), '?'));
+    $blocked_rows = db_all(
+        "SELECT *
+         FROM blocked_slots
+         WHERE staff_id IN ($placeholders)
+           AND (date = ?
+                OR (COALESCE(repeat_mode, '') = 'working_day'
+                    AND date <= ?
+                    AND (repeat_until IS NULL OR repeat_until >= ?)))
+           AND start_time <= ?
+           AND end_time > ?",
+        array_merge($visible_staff_ids, [$today, $today, $today, $now_time, $now_time])
+    );
+    foreach ($blocked_rows as $row) {
+        if (blocked_slot_applies_on_date($row, $today)) {
+            $blocked_now_ids[(int)$row['staff_id']] = true;
+        }
+    }
+
+    $booking_rows = db_all(
+        "SELECT DISTINCT staff_id
+         FROM bookings
+         WHERE staff_id IN ($placeholders)
+           AND booking_date = ?
+           AND status IN ('pending','confirmed')
+           AND start_time <= ?
+           AND end_time > ?",
+        array_merge($visible_staff_ids, [$today, $now_time, $now_time])
+    );
+    foreach ($booking_rows as $row) {
+        $in_booking_now_ids[(int)$row['staff_id']] = true;
+    }
+}
 
 admin_header();
 ?>
@@ -201,19 +241,41 @@ admin_header();
     <tbody>
     <?php foreach ($all as $s): ?>
       <tr class="border-t border-neutral-100">
-        <td class="px-3 py-2">
+        <td class="px-3 py-3">
+          <?php
+            $is_active_staff = (int)$s['is_active'] === 1;
+            $is_blocked_now = $is_active_staff && isset($blocked_now_ids[(int)$s['id']]);
+            $is_in_booking_now = $is_active_staff && isset($in_booking_now_ids[(int)$s['id']]);
+            $dot_class = !$is_active_staff
+                ? 'bg-slate-700'
+                : ($is_blocked_now ? 'bg-amber-400' : 'bg-emerald-500');
+            $dot_label = !$is_active_staff
+                ? 'Inactive'
+                : ($is_in_booking_now ? 'In appointment' : ($is_blocked_now ? 'On break' : 'Active now'));
+            $hover_label = !$is_active_staff ? 'Inactive' : ($is_in_booking_now ? 'In appointment' : ($is_blocked_now ? 'On break' : 'Active'));
+            $avatar_classes = trim(
+                'staff-avatar-status relative inline-block'
+                . ($is_in_booking_now ? ' staff-avatar-in-booking' : '')
+                . ($hover_label !== '' ? ' has-status-tooltip' : '')
+            );
+          ?>
+          <div class="<?= e($avatar_classes) ?>" data-status-label="<?= e($hover_label) ?>">
           <?php if (!empty($s['avatar'])): ?>
             <img src="/assets/avatars/<?= e(basename($s['avatar'])) ?>" class="w-8 h-8 rounded-full object-cover">
           <?php else: ?>
             <div class="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-xs"><?= e(strtoupper(substr($s['name'],0,2))) ?></div>
           <?php endif; ?>
+            <span class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white <?= e($dot_class) ?>" title="<?= e($dot_label) ?>" aria-label="<?= e($dot_label) ?>"></span>
+          </div>
         </td>
-        <td class="px-3 py-2 font-medium"><?= e($s['name']) ?></td>
-        <td class="px-3 py-2 text-neutral-500"><?= e($s['email']) ?></td>
-        <td class="px-3 py-2"><?= e($s['role']) ?></td>
-        <td class="px-3 py-2"><?= (int)$s['svc_count'] ?></td>
-        <td class="px-3 py-2"><?= (int)$s['is_active']?'Yes':'No' ?></td>
-        <td class="px-3 py-2 text-right">
+        <td class="px-3 py-3 font-medium <?= (int)$s['is_active'] ? '' : 'text-neutral-500' ?>">
+          <span class="<?= (int)$s['is_active'] ? '' : 'inactive-staff-name' ?>"><?= e($s['name']) ?></span>
+        </td>
+        <td class="px-3 py-3 text-neutral-500"><?= e($s['email']) ?></td>
+        <td class="px-3 py-3"><?= e($s['role']) ?></td>
+        <td class="px-3 py-3"><?= (int)$s['svc_count'] ?></td>
+        <td class="px-3 py-3"><?= (int)$s['is_active']?'Yes':'No' ?></td>
+        <td class="px-3 py-3 text-right">
           <a class="text-primary hover:underline mr-3" href="?edit=<?= (int)$s['id'] ?>">Edit</a>
           <?php if ((int)$s['id'] !== (int)current_user()['id']): ?>
           <form method="post" class="inline" onsubmit="return confirm('Delete this staff member?')">

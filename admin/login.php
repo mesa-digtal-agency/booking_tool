@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $primary = primary_color();
 $accent = accent_color();
+$font_stack = app_font_stack();
+$font_url = app_font_stylesheet_url();
 $dark = dark_mode_enabled();
 $biz = business_name();
 $logo = logo_url();
@@ -34,8 +36,11 @@ $logo = logo_url();
 <title>Log in · <?= e($biz) ?></title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="<?= e($font_url) ?>">
 <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-<style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
+<style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;--app-font-family: <?= $font_stack ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900 flex items-center justify-center p-4 <?= $dark ? 'theme-dark' : '' ?>">
 <div id="toastRoot"></div>

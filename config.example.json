@@ -19,6 +19,8 @@
   "app_url": "https://yourdomain.com",
   "primary_color": "#7c3aed",
   "accent_color": "#7c3aed",
+  "_comment_font_family": "System font. Allowed values: Roboto, Open Sans, Poppins, Nunito, Rubik.",
+  "font_family": "Open Sans",
   "dark_mode": false,
   "show_import_export": true,
   "show_settings_page": true,

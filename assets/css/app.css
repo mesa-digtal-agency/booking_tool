@@ -8,6 +8,10 @@
 /* Anything with a transition shown on hover gets a subtle ease. */
 a, button, select, input, textarea { transition: background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease; }
 
+html, body, button, input, select, textarea {
+    font-family: var(--app-font-family, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
 /* Native controls should use the configured accent color where browsers allow it. */
 input, select, textarea, button {
     accent-color: var(--accent-color, var(--primary-color, #7c3aed));
@@ -76,6 +80,19 @@ a:hover { transition: color .15s ease; }
     content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;
     width: 3px; border-radius: 2px; background: var(--accent-color, var(--primary-color, #6b7280));
 }
+.nav-link i {
+    width: 18px;
+    min-width: 18px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1;
+}
+.nav-link span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 
 /* Sidebar nav scroll customization */
 nav.overflow-y-auto::-webkit-scrollbar { width: 6px; }
@@ -89,6 +106,148 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 }
 .admin-main table {
     min-width: 720px;
+}
+.dashboard-staff-table {
+    overflow-x: hidden;
+}
+.dashboard-staff-table table {
+    min-width: 0;
+    width: 100%;
+}
+.dashboard-diagram-card {
+    border-radius: 24px;
+    padding: 18px;
+    overflow: hidden;
+}
+.dashboard-diagram-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.dashboard-diagram-title {
+    color: #111827;
+    font-size: 15px;
+    line-height: 1.2;
+    font-weight: 700;
+}
+.dashboard-diagram-chip {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    border: 1px solid #edf0f5;
+    border-radius: 999px;
+    background: #fff;
+    color: #6b7280;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 600;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+.dashboard-chart-wrap {
+    min-width: 0;
+}
+.dashboard-donut-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dashboard-donut-center {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+.dashboard-donut-center span {
+    color: #9ca3af;
+    font-size: 11px;
+    line-height: 1.1;
+    font-weight: 600;
+}
+.dashboard-donut-center strong {
+    margin-top: 3px;
+    color: #111827;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 800;
+}
+.inactive-staff-name {
+    text-decoration: line-through;
+    text-decoration-color: #fca5a5;
+}
+.staff-avatar-status {
+    isolation: isolate;
+    line-height: 0;
+    overflow: visible;
+    vertical-align: middle;
+}
+.staff-avatar-status > img,
+.staff-avatar-status > div {
+    position: relative;
+    z-index: 1;
+}
+.staff-avatar-status > span {
+    z-index: 2;
+}
+.staff-avatar-status.has-status-tooltip::before {
+    content: attr(data-status-label);
+    position: absolute;
+    left: calc(100% + 8px);
+    top: 50%;
+    z-index: 30;
+    width: max-content;
+    max-width: 160px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    background: #111827;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(4px, -50%);
+    transition: opacity .15s ease, transform .15s ease, visibility .15s ease;
+}
+.staff-avatar-status.has-status-tooltip:hover::before,
+.staff-avatar-status.has-status-tooltip:focus-within::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%);
+}
+.staff-avatar-in-booking::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42px;
+    height: 42px;
+    z-index: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(16, 185, 129, 0.30);
+    background: rgba(16, 185, 129, 0.08);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: staffBookedPulse 1.8s ease-in-out infinite;
+}
+@keyframes staffBookedPulse {
+    0%, 100% {
+        opacity: .82;
+        transform: translate(-50%, -50%) scale(.96);
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12);
+    }
+    50% {
+        opacity: .42;
+        transform: translate(-50%, -50%) scale(1.04);
+        box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.06);
+    }
 }
 
 /* ---------- Settings color picker ---------------------------------- */
@@ -616,6 +775,19 @@ body.theme-dark label {
 .theme-dark #liveClock {
     background: var(--dark-field);
     border-color: var(--dark-border);
+}
+.theme-dark .dashboard-diagram-title,
+.theme-dark .dashboard-donut-center strong {
+    color: var(--dark-text);
+}
+.theme-dark .dashboard-diagram-chip {
+    background: var(--dark-field);
+    border-color: var(--dark-border);
+    color: var(--dark-muted);
+    box-shadow: none;
+}
+.theme-dark .dashboard-donut-center span {
+    color: var(--dark-faint);
 }
 .theme-dark .h-20.border-t,
 .theme-dark .border-t,

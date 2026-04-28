@@ -13,21 +13,21 @@
 
 function admin_nav_items(): array {
     $items = [
-        ['dashboard', '/admin/index.php',       'Dashboard'],
-        ['calendar',  '/admin/calendar.php',    'Calendar'],
-        ['bookings',  '/admin/bookings.php',    'Bookings'],
-        ['services',  '/admin/services.php',    'Services'],
+        ['dashboard', '/admin/index.php',       'Dashboard',       'fa-solid fa-chart-line'],
+        ['calendar',  '/admin/calendar.php',    'Calendar',        'fa-regular fa-calendar-days'],
+        ['bookings',  '/admin/bookings.php',    'Bookings',        'fa-regular fa-calendar-check'],
+        ['services',  '/admin/services.php',    'Services',        'fa-solid fa-scissors'],
     ];
     if (is_admin()) {
-        $items[] = ['staff', '/admin/staff.php', 'Staff'];
+        $items[] = ['staff', '/admin/staff.php', 'Staff', 'fa-solid fa-user-group'];
     }
-    $items[] = ['hours',   '/admin/staff-hours.php',   'Working hours'];
-    $items[] = ['blocked', '/admin/blocked-slots.php', 'Blocked slots'];
+    $items[] = ['hours',   '/admin/staff-hours.php',   'Working hours', 'fa-regular fa-clock'];
+    $items[] = ['blocked', '/admin/blocked-slots.php', 'Blocked slots', 'fa-solid fa-ban'];
     if (is_admin() && import_export_enabled()) {
-        $items[] = ['data', '/admin/import-export.php', 'Import / export'];
+        $items[] = ['data', '/admin/import-export.php', 'Import / export', 'fa-solid fa-file-arrow-up'];
     }
     if (is_admin() && settings_page_enabled()) {
-        $items[] = ['settings', '/admin/settings.php', 'Settings'];
+        $items[] = ['settings', '/admin/settings.php', 'Settings', 'fa-solid fa-gear'];
     }
     return $items;
 }
@@ -64,6 +64,8 @@ function admin_header(): void {
     $user = current_user();
     $primary = primary_color();
     $accent = function_exists('accent_color') ? accent_color() : $primary;
+    $font_stack = function_exists('app_font_stack') ? app_font_stack() : "ui-sans-serif, system-ui, sans-serif";
+    $font_url = function_exists('app_font_stylesheet_url') ? app_font_stylesheet_url() : '';
     $dark = function_exists('dark_mode_enabled') && dark_mode_enabled();
     $biz = business_name();
     $tz = $GLOBALS['CONFIG']['business_timezone'] ?? 'UTC';
@@ -80,8 +82,14 @@ function admin_header(): void {
   <script>
   tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
   </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <?php if ($font_url !== ''): ?>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="<?= e($font_url) ?>">
+  <?php endif; ?>
   <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-  <style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
+  <style>:root{--primary-color: <?= e($primary) ?>;--accent-color: <?= e($accent) ?>;--app-font-family: <?= $font_stack ?>;color-scheme: <?= $dark ? 'dark' : 'light' ?>;}</style>
 </head>
 <body class="bg-neutral-50 text-neutral-900 h-full overflow-hidden <?= $dark ? 'theme-dark' : '' ?>">
 <div class="flex h-full overflow-hidden">
@@ -96,10 +104,10 @@ function admin_header(): void {
     <div class="flex flex-col flex-1 min-h-0 p-4">
       <?= render_sidebar_logo() ?>
       <nav class="flex-1 overflow-y-auto space-y-1 -mx-2 px-2">
-        <?php foreach ($navItems as [$key, $url, $label]):
+        <?php foreach ($navItems as [$key, $url, $label, $icon]):
           $cls = $current === $key ? 'nav-link active' : 'nav-link';
         ?>
-          <a href="<?= e($url) ?>" class="<?= e($cls) ?>"><?= e($label) ?></a>
+          <a href="<?= e($url) ?>" class="<?= e($cls) ?>"><i class="<?= e($icon) ?>" aria-hidden="true"></i><span><?= e($label) ?></span></a>
         <?php endforeach; ?>
       </nav>
       <div class="flex-shrink-0 pt-3 mt-3 border-t border-neutral-100 text-xs text-neutral-500">
@@ -110,7 +118,7 @@ function admin_header(): void {
         </div>
         <div class="px-2 font-medium text-neutral-700 truncate"><?= e($user['name'] ?? '') ?></div>
         <div class="px-2 text-[10px] uppercase tracking-wide text-neutral-400"><?= e($user['role'] ?? '') ?></div>
-        <a href="/admin/logout.php" class="nav-link mt-2 text-red-600 hover:bg-red-50">Log out</a>
+        <a href="/admin/logout.php" class="nav-link mt-2 text-red-600 hover:bg-red-50"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i><span>Log out</span></a>
       </div>
     </div>
   </aside>

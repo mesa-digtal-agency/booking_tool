@@ -4,6 +4,8 @@ require_once __DIR__ . '/includes/bootstrap.php';
 $primary = primary_color();
 $biz     = business_name();
 $logo    = logo_url();
+$font_stack = app_font_stack();
+$font_url = app_font_stylesheet_url();
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -15,8 +17,11 @@ $logo    = logo_url();
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="<?= e($font_url) ?>">
     <link rel="stylesheet" href="<?= e(asset('/assets/css/app.css')) ?>">
-    <style>:root{--primary-color: <?= e($primary) ?>;}</style>
+    <style>:root{--primary-color: <?= e($primary) ?>;--app-font-family: <?= $font_stack ?>;}</style>
 </head>
 <body class="min-h-screen bg-neutral-50 text-neutral-900"
       data-time-format="<?= e(time_format()) ?>"
@@ -24,28 +29,28 @@ $logo    = logo_url();
       data-business-today="<?= e(business_today()) ?>">
 <div id="toastRoot"></div>
 
-<header class="bg-white border-b border-neutral-200 sticky top-0 z-30">
-    <div class="max-w-3xl mx-auto flex items-center justify-between px-4 py-3">
-        <div class="flex items-center gap-3 min-w-0">
+<header class="booking-header bg-white border-b border-neutral-200 sticky top-0 z-30">
+    <div class="booking-header-inner max-w-3xl mx-auto flex items-center justify-between px-4 py-2.5 md:py-3 gap-3">
+        <div class="flex items-center gap-2.5 md:gap-3 min-w-0">
             <?php if ($logo): ?>
-                <img src="<?= e($logo) ?>" alt="<?= e($biz) ?>" class="h-10 max-w-[140px] object-contain">
+                <img src="<?= e($logo) ?>" alt="<?= e($biz) ?>" class="booking-logo h-9 md:h-10 max-w-[118px] md:max-w-[140px] object-contain">
             <?php else: ?>
-                <div class="w-10 h-10 rounded-full flex-shrink-0" style="background: <?= e($primary) ?>"></div>
+                <div class="w-9 h-9 md:w-10 md:h-10 rounded-full flex-shrink-0" style="background: <?= e($primary) ?>"></div>
             <?php endif; ?>
-            <div class="min-w-0">
+            <div class="booking-brand-copy min-w-0">
                 <div class="font-semibold truncate"><?= e($biz) ?></div>
                 <div class="text-xs text-neutral-500">Online booking</div>
             </div>
         </div>
-        <a href="/admin/login.php" class="text-xs text-neutral-500 hover:text-neutral-800">Staff login</a>
+        <a href="/admin/login.php" class="text-xs text-neutral-500 hover:text-neutral-800 whitespace-nowrap">Staff login</a>
     </div>
 </header>
 
-<main class="max-w-3xl mx-auto p-4 pb-24">
+<main class="max-w-3xl mx-auto px-4 py-4 pb-24">
     <!-- Step indicator -->
-    <ol id="steps" class="flex items-center justify-between mb-6 text-xs text-neutral-500">
+    <ol id="steps" class="booking-steps flex items-center mb-6 text-xs text-neutral-500">
         <li data-step="1" class="step flex-1 text-center border-b-2 pb-2 border-primary text-primary font-medium">1 · Service</li>
-        <li data-step="2" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">2 · Professional</li>
+        <li data-step="2" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">2 · Stylist</li>
         <li data-step="3" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">3 · Date &amp; time</li>
         <li data-step="4" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">4 · Details</li>
         <li data-step="5" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">5 · Confirm</li>
@@ -57,9 +62,9 @@ $logo    = logo_url();
         <div id="servicesList" class="space-y-3"></div>
     </section>
 
-    <!-- Step 2: Professional -->
+    <!-- Step 2: Stylist -->
     <section data-panel="2" class="panel hidden">
-        <h2 class="text-xl font-semibold mb-3">Choose a professional</h2>
+        <h2 class="text-xl font-semibold mb-3">Choose a stylist</h2>
         <div id="staffList" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
         <div class="mt-4">
             <button data-back class="text-sm text-neutral-500 hover:text-neutral-800">← Back</button>
@@ -69,9 +74,9 @@ $logo    = logo_url();
     <!-- Step 3: Date & time -->
     <section data-panel="3" class="panel hidden">
         <h2 class="text-xl font-semibold mb-3">Pick a date &amp; time</h2>
-        <div class="flex items-center gap-3 mb-4">
+        <div class="booking-date-row flex items-center gap-3 mb-4">
             <button id="prevDay" class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-100">←</button>
-            <input type="date" id="dateInput" class="px-3 py-2 rounded-lg border border-neutral-200 flex-1">
+            <input type="date" id="dateInput" class="px-3 py-2 rounded-lg border border-neutral-200 flex-1 min-w-0">
             <button id="nextDay" class="px-3 py-2 rounded-lg border border-neutral-200 hover:bg-neutral-100">→</button>
         </div>
         <div id="slotsList" class="grid grid-cols-3 md:grid-cols-4 gap-2"></div>

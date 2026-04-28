@@ -54,6 +54,7 @@ function load_config(): array {
         'app_url' => '',
         'primary_color' => '#7c3aed',
         'accent_color' => '',
+        'font_family' => 'Open Sans',
         'dark_mode' => false,
         'show_import_export' => true,
         'show_settings_page' => true,
