@@ -62,6 +62,35 @@ $hour_map = array_fill(0, 24, 0);
 foreach ($busiest as $r) $hour_map[(int)$r['hr']] = (int)$r['cnt'];
 $has_hour_data = array_sum($hour_map) > 0;
 
+// Busiest days (this year) - contribution-style heatmap.
+$heatmap_year = (int)$today_dt->format('Y');
+$year_start = $today_dt->setDate($heatmap_year, 1, 1)->setTime(0, 0);
+$year_end = $today_dt->setDate($heatmap_year, 12, 31)->setTime(0, 0);
+$heatmap_start = $year_start->modify('monday this week');
+$heatmap_end = $year_end->modify('sunday this week');
+$heatmap_year_label = (string)$heatmap_year;
+$heatmap_rows = db_all(
+    "SELECT booking_date, COUNT(*) AS cnt
+     FROM bookings b
+     WHERE booking_date BETWEEN ? AND ? {$scope_where}
+     GROUP BY booking_date",
+    [$year_start->format('Y-m-d'), $year_end->format('Y-m-d')]
+);
+$heatmap_counts = [];
+foreach ($heatmap_rows as $row) {
+    $heatmap_counts[(string)$row['booking_date']] = (int)$row['cnt'];
+}
+$heatmap_max = max($heatmap_counts ?: [0]);
+$heatmap_weeks = intdiv((int)$heatmap_start->diff($heatmap_end)->days, 7) + 1;
+$heatmap_months = array_fill(0, $heatmap_weeks, '');
+for ($m = 1; $m <= 12; $m++) {
+    $month_dt = $year_start->setDate($heatmap_year, $m, 1);
+    $week = intdiv((int)$heatmap_start->diff($month_dt)->days, 7);
+    if ($week >= 0 && $week < $heatmap_weeks) {
+        $heatmap_months[$week] = $month_dt->format('M');
+    }
+}
+
 // Limit upcoming to 4 — keeps the dashboard compact.
 $upcoming = db_all(
     "SELECT b.id, b.booking_date, b.start_time, b.status, b.customer_name,
@@ -86,10 +115,17 @@ foreach ($status_rows as $r) $status_map[$r['status']] = (int)$r['cnt'];
 $month_total = array_sum($status_map);
 $active_month = $status_map['confirmed'] + $status_map['completed'];
 $completion_rate = $month_total > 0 ? round(($active_month / $month_total) * 100) : 0;
+$cancellation_rate = $month_total > 0 ? round(($status_map['cancelled'] / $month_total) * 100) : 0;
+$no_show_rate = $month_total > 0 ? round(($status_map['no_show'] / $month_total) * 100) : 0;
 $avg_booking_value = $active_month > 0 ? $stats['month']['revenue'] / $active_month : 0;
 $open_count = (int)db_scalar(
     "SELECT COUNT(*) FROM bookings
      WHERE booking_date >= ? AND status IN ('pending','confirmed') {$scope_where}",
+    [$today]
+);
+$pending_count = (int)db_scalar(
+    "SELECT COUNT(*) FROM bookings
+     WHERE booking_date >= ? AND status = 'pending' {$scope_where}",
     [$today]
 );
 $active_services = (int)db_scalar("SELECT COUNT(*) FROM services WHERE is_active = 1");
@@ -141,9 +177,9 @@ admin_header();
 <?= flash_render() ?>
 <h1 class="text-xl font-semibold mb-4">Dashboard</h1>
 
-<div class="dashboard-grid grid gap-3 md:min-h-[calc(100vh-7rem)] md:grid-rows-[auto_minmax(280px,1.25fr)_minmax(260px,1fr)]">
+<div class="dashboard-grid grid gap-3">
 <!-- Row 1: stat cards -->
-<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3">
   <?php foreach (['today'=>'Today','week'=>'This week','month'=>'This month'] as $k=>$lbl): ?>
     <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
       <div class="text-[10px] text-neutral-500 uppercase tracking-wide"><?= e($lbl) ?></div>
@@ -163,12 +199,36 @@ admin_header();
     <div class="text-xs text-neutral-600 mt-0.5">Pending and confirmed</div>
   </div>
   <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide">Pending bookings</div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= $pending_count ?></div>
+      <div class="text-[11px] text-neutral-500">upcoming</div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5">Awaiting action</div>
+  </div>
+  <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
     <div class="text-[10px] text-neutral-500 uppercase tracking-wide">Completion rate</div>
     <div class="flex items-baseline gap-2 mt-0.5">
       <div class="text-xl font-semibold"><?= $completion_rate ?>%</div>
       <div class="text-[11px] text-neutral-500">this month</div>
     </div>
     <div class="text-xs text-neutral-600 mt-0.5"><?= $active_month ?> of <?= $month_total ?> bookings</div>
+  </div>
+  <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide">Cancellation rate</div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= $cancellation_rate ?>%</div>
+      <div class="text-[11px] text-neutral-500">this month</div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5"><?= (int)$status_map['cancelled'] ?> of <?= $month_total ?> bookings</div>
+  </div>
+  <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
+    <div class="text-[10px] text-neutral-500 uppercase tracking-wide">No-show rate</div>
+    <div class="flex items-baseline gap-2 mt-0.5">
+      <div class="text-xl font-semibold"><?= $no_show_rate ?>%</div>
+      <div class="text-[11px] text-neutral-500">this month</div>
+    </div>
+    <div class="text-xs text-neutral-600 mt-0.5"><?= (int)$status_map['no_show'] ?> of <?= $month_total ?> bookings</div>
   </div>
   <div class="dashboard-stat-card bg-white border border-neutral-200 rounded-xl p-3">
     <div class="text-[10px] text-neutral-500 uppercase tracking-wide"><?= is_admin() ? 'Active staff' : 'Active services' ?></div>
@@ -185,16 +245,16 @@ admin_header();
 </div>
 
 <!-- Row 2: charts -->
-<div class="grid lg:grid-cols-3 gap-3 min-h-0">
+<div class="dashboard-row-charts grid lg:grid-cols-3 gap-3 min-h-0">
   <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 lg:col-span-2 flex flex-col min-h-0">
     <div class="dashboard-diagram-header">
       <div class="dashboard-diagram-title">Busiest hours</div>
       <div class="dashboard-diagram-chip">This month</div>
     </div>
     <?php if ($has_hour_data): ?>
-      <div class="dashboard-chart-wrap flex-1 min-h-[170px] md:min-h-[220px]"><canvas id="hoursChart"></canvas></div>
+      <div class="dashboard-chart-wrap flex-1 min-h-[190px] md:min-h-[260px]"><canvas id="hoursChart"></canvas></div>
     <?php else: ?>
-      <div class="dashboard-empty flex-1 min-h-[120px] md:min-h-[220px] flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-500">No bookings this month yet.</div>
+      <div class="dashboard-empty flex-1 min-h-[140px] md:min-h-[260px] flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-500">No bookings this month yet.</div>
     <?php endif; ?>
   </div>
   <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 flex flex-col min-h-0">
@@ -203,7 +263,7 @@ admin_header();
       <div class="dashboard-diagram-chip">This month</div>
     </div>
     <?php if ($month_total > 0): ?>
-      <div class="dashboard-chart-wrap dashboard-donut-wrap flex-1 min-h-[180px] md:min-h-[220px] relative">
+      <div class="dashboard-chart-wrap dashboard-donut-wrap flex-1 min-h-[190px] md:min-h-[260px] relative">
         <canvas id="statusChart"></canvas>
         <div class="dashboard-donut-center" aria-hidden="true">
           <span>Total</span>
@@ -211,13 +271,57 @@ admin_header();
         </div>
       </div>
     <?php else: ?>
-      <div class="dashboard-empty flex-1 min-h-[120px] md:min-h-[220px] flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-500">No status data yet.</div>
+      <div class="dashboard-empty flex-1 min-h-[140px] md:min-h-[260px] flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-500">No status data yet.</div>
     <?php endif; ?>
   </div>
 </div>
 
-<!-- Row 3: upcoming + top services + staff performance -->
-<div class="grid lg:grid-cols-3 gap-3 min-h-0">
+<!-- Row 3: busiest days -->
+<div class="dashboard-row-middle grid gap-3 min-h-0">
+<div class="dashboard-diagram-card dashboard-heatmap-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
+  <div class="dashboard-diagram-header">
+    <div class="dashboard-diagram-title">Busiest days</div>
+    <div class="dashboard-diagram-chip"><?= e($heatmap_year_label) ?></div>
+  </div>
+  <div class="dashboard-heatmap-scroll">
+    <div class="dashboard-heatmap-grid" style="--heatmap-weeks: <?= (int)$heatmap_weeks ?>">
+      <div class="dashboard-heatmap-corner"></div>
+      <?php foreach ($heatmap_months as $month): ?>
+        <div class="dashboard-heatmap-month"><?= e($month) ?></div>
+      <?php endforeach; ?>
+      <?php
+        $weekday_labels = [1 => 'Mon', 2 => '', 3 => 'Wed', 4 => '', 5 => 'Fri', 6 => '', 7 => ''];
+        for ($dow = 1; $dow <= 7; $dow++):
+      ?>
+        <div class="dashboard-heatmap-weekday"><?= e($weekday_labels[$dow]) ?></div>
+        <?php for ($week = 0; $week < $heatmap_weeks; $week++):
+            $cell_dt = $heatmap_start->modify('+' . (($week * 7) + ($dow - 1)) . ' days');
+            $date_key = $cell_dt->format('Y-m-d');
+            $count = $heatmap_counts[$date_key] ?? 0;
+            $outside = $cell_dt < $year_start || $cell_dt > $year_end;
+            $level = 0;
+            if (!$outside && $count > 0 && $heatmap_max > 0) {
+                $level = max(1, min(4, (int)ceil(($count / $heatmap_max) * 4)));
+            }
+            $label = $outside
+                ? ''
+                : $cell_dt->format('M j, Y') . ': ' . $count . ' ' . ($count === 1 ? 'booking' : 'bookings');
+        ?>
+          <span class="dashboard-heatmap-cell level-<?= (int)$level ?> <?= $outside ? 'is-outside' : '' ?>" title="<?= e($label) ?>" aria-label="<?= e($label) ?>"></span>
+        <?php endfor; ?>
+      <?php endfor; ?>
+    </div>
+  </div>
+  <div class="dashboard-heatmap-legend" aria-hidden="true">
+    <span>Less</span>
+    <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i>
+    <span>More</span>
+  </div>
+</div>
+</div>
+
+<!-- Row 4: compact summaries -->
+<div class="dashboard-row-bottom grid lg:grid-cols-3 gap-3 min-h-0">
   <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
     <div class="text-xs font-semibold mb-2 text-neutral-700">Upcoming bookings</div>
     <?php if (!$upcoming): ?>
@@ -246,7 +350,7 @@ admin_header();
         <?php foreach ($top_services as $i => $s): ?>
           <li class="flex items-center justify-between gap-2">
             <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
-            <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> bookings</span>
+            <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> <?= (int)$s['cnt'] === 1 ? 'booking' : 'bookings' ?></span>
           </li>
         <?php endforeach; ?>
       </ol>
@@ -262,12 +366,25 @@ admin_header();
       <div class="nice-scroll dashboard-staff-table overflow-y-auto pr-3 flex-1 min-h-0">
         <table class="w-full text-xs">
           <thead class="text-neutral-500 text-left sticky top-0 bg-white">
-            <tr><th class="py-1 font-normal">Staff</th><th class="font-normal">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
+            <tr><th class="py-1 font-normal w-10">#</th><th class="font-normal">Staff</th><th class="font-normal">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
           </thead>
           <tbody>
-          <?php foreach ($staff_perf as $p): ?>
+          <?php
+            $staff_rank_classes = ['gold', 'silver', 'bronze'];
+            foreach ($staff_perf as $i => $p):
+              $rank_class = $staff_rank_classes[$i] ?? null;
+          ?>
             <tr class="border-t border-neutral-100">
-              <td class="py-1.5 truncate max-w-[110px]"><?= e($p['name']) ?></td>
+              <td class="py-1.5">
+                <?php if ($rank_class): ?>
+                  <span class="dashboard-staff-rank-badge dashboard-rank-<?= e($rank_class) ?>"><?= $i + 1 ?></span>
+                <?php else: ?>
+                  <span class="dashboard-staff-rank-number"><?= $i + 1 ?></span>
+                <?php endif; ?>
+              </td>
+              <td class="py-1.5">
+                <span class="truncate block"><?= e($p['name']) ?></span>
+              </td>
               <td class="py-1.5"><?= (int)$p['cnt'] ?></td>
               <td class="py-1.5 text-right"><?= e(money_with_currency((float)$p['revenue'])) ?></td>
             </tr>
@@ -278,7 +395,7 @@ admin_header();
     <?php endif; ?>
   </div>
   <?php else: ?>
-  <!-- Placeholder keeps the 3-col grid balanced for staff role. -->
+  <!-- Placeholder keeps the lower dashboard row balanced for staff role. -->
   <div></div>
   <?php endif; ?>
 </div>
@@ -295,22 +412,51 @@ const dashboardMuted = dashboardDark ? '#b6c2d2' : '#9ca3af';
 const dashboardGrid = dashboardDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(148, 163, 184, 0.18)';
 const dashboardPanel = dashboardDark ? '#151c2c' : '#ffffff';
 
+function dashboardExternalTooltip(context) {
+  const { chart, tooltip } = context;
+  const parent = chart.canvas.parentNode;
+  let el = parent.querySelector('.dashboard-chart-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'dashboard-chart-tooltip';
+    el.innerHTML = '<div class="dashboard-chart-tooltip-title"></div><div class="dashboard-chart-tooltip-row"><span></span><strong></strong></div>';
+    parent.appendChild(el);
+  }
+
+  if (tooltip.opacity === 0) {
+    el.classList.remove('is-visible');
+    return;
+  }
+
+  const point = tooltip.dataPoints && tooltip.dataPoints[0];
+  if (!point) return;
+
+  const title = point.label || '';
+  const value = chart.config.type === 'bar'
+    ? `${point.parsed.y} ${point.parsed.y === 1 ? 'booking' : 'bookings'}`
+    : `${point.parsed} ${point.parsed === 1 ? 'booking' : 'bookings'}`;
+  const color = point.element.options.backgroundColor || point.dataset.backgroundColor || primary;
+
+  el.querySelector('.dashboard-chart-tooltip-title').textContent = title;
+  el.querySelector('.dashboard-chart-tooltip-row span').style.background = color;
+  el.querySelector('.dashboard-chart-tooltip-row strong').textContent = value;
+  el.style.left = tooltip.caretX + 'px';
+  el.style.top = tooltip.caretY + 'px';
+  el.classList.add('is-visible');
+}
+
 const hoursCanvas = document.getElementById('hoursChart');
 if (hoursCanvas) {
   new Chart(hoursCanvas, {
     type: 'bar',
-    data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: primary, borderRadius: 8, borderSkipped: false, barPercentage: 0.58, categoryPercentage: 0.72 }] },
+    data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: primary, borderRadius: { topLeft: 999, topRight: 999, bottomLeft: 0, bottomRight: 0 }, borderSkipped: false, barPercentage: 0.58, categoryPercentage: 0.72 }] },
     options: {
+      interaction: { intersect: false, mode: 'index' },
       responsive: true, maintainAspectRatio: false,
       layout: { padding: { top: 8, right: 8, bottom: 0, left: 0 } },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          backgroundColor: '#111827',
-          padding: 10,
-          displayColors: false,
-          callbacks: { label: ctx => `${ctx.parsed.y} bookings` }
-        }
+        tooltip: { enabled: false, external: dashboardExternalTooltip }
       },
       scales: {
         x: {
@@ -348,6 +494,7 @@ if (statusCanvas) {
         backgroundColor: ['#60a5fa','#fbbf24','#f87171','#4ade80','#c084fc'],
         borderWidth: dashboardSmall ? 4 : 6,
         borderColor: dashboardPanel,
+        borderRadius: 999,
         hoverOffset: 6,
         spacing: 2
       }]
@@ -360,7 +507,7 @@ if (statusCanvas) {
           position: 'bottom',
           labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: dashboardSmall ? 7 : 8, padding: dashboardSmall ? 8 : 10, color: dashboardDark ? '#b6c2d2' : '#6b7280', font: { size: dashboardSmall ? 9 : 10, weight: '500' } }
         },
-        tooltip: { backgroundColor: '#111827', padding: 10 }
+        tooltip: { enabled: false, external: dashboardExternalTooltip }
       }
     }
   });
