@@ -112,6 +112,7 @@ $status_rows = db_all(
 );
 $status_map = ['confirmed'=>0,'pending'=>0,'cancelled'=>0,'completed'=>0,'no_show'=>0];
 foreach ($status_rows as $r) $status_map[$r['status']] = (int)$r['cnt'];
+$dashboard_status_colors = booking_status_colors();
 $month_total = array_sum($status_map);
 $active_month = $status_map['confirmed'] + $status_map['completed'];
 $completion_rate = $month_total > 0 ? round(($active_month / $month_total) * 100) : 0;
@@ -179,7 +180,7 @@ foreach ($staff_perf as $p) {
 admin_header();
 ?>
 <?= flash_render() ?>
-<h1 class="text-xl font-semibold mb-4">Dashboard</h1>
+<h1 class="text-2xl font-semibold mb-4">Dashboard</h1>
 
 <div class="dashboard-grid grid gap-3">
 <!-- Row 1: stat cards -->
@@ -241,7 +242,7 @@ admin_header();
       <div class="text-[11px] text-neutral-500"><?= is_admin() ? 'people' : 'services' ?></div>
     </div>
     <?php if (is_admin()): ?>
-      <div class="text-xs text-neutral-600 mt-0.5"><?= (int)$inactive_staff ?> <span class="text-neutral-400">inactive</span> &middot; <?= (int)$blocked_now_staff ?> <span class="text-neutral-400">blocked now</span></div>
+      <div class="text-xs text-neutral-600 mt-0.5"><?= (int)$inactive_staff ?> <span class="text-neutral-400">inactive</span> &middot; <?= (int)$blocked_now_staff ?> <span class="text-neutral-400">on break</span></div>
     <?php else: ?>
       <div class="text-xs text-neutral-600 mt-0.5">Available to customers</div>
     <?php endif; ?>
@@ -326,8 +327,11 @@ admin_header();
 
 <!-- Row 4: compact summaries -->
 <div class="dashboard-row-bottom grid lg:grid-cols-3 gap-3 min-h-0">
-  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
-    <div class="text-xs font-semibold mb-2 text-neutral-700">Upcoming bookings</div>
+  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+    <div class="dashboard-diagram-header">
+      <div class="dashboard-diagram-title">Upcoming bookings</div>
+      <div class="dashboard-diagram-chip">Next 4</div>
+    </div>
     <?php if (!$upcoming): ?>
       <div class="text-xs text-neutral-500">Nothing coming up.</div>
     <?php else: ?>
@@ -345,8 +349,11 @@ admin_header();
     <?php endif; ?>
   </div>
 
-  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
-    <div class="text-xs font-semibold mb-2 text-neutral-700">Top services (this month)</div>
+  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
+    <div class="dashboard-diagram-header">
+      <div class="dashboard-diagram-title">Top services</div>
+      <div class="dashboard-diagram-chip">This month</div>
+    </div>
     <?php if (!$top_services): ?>
       <div class="text-xs text-neutral-500">No bookings yet.</div>
     <?php else: ?>
@@ -362,15 +369,18 @@ admin_header();
   </div>
 
   <?php if (is_admin()): ?>
-  <div class="bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
-    <div class="text-xs font-semibold mb-2 text-neutral-700">Staff performance</div>
+  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+    <div class="dashboard-diagram-header">
+      <div class="dashboard-diagram-title">Staff performance</div>
+      <div class="dashboard-diagram-chip">This month</div>
+    </div>
     <?php if (!$staff_perf): ?>
       <div class="text-xs text-neutral-500">No active staff yet.</div>
     <?php else: ?>
       <div class="nice-scroll dashboard-staff-table overflow-y-auto pr-3 flex-1 min-h-0">
         <table class="w-full text-xs">
           <thead class="text-neutral-500 text-left sticky top-0 bg-white">
-            <tr><th class="py-1 font-normal w-10">#</th><th class="font-normal">Staff</th><th class="font-normal w-40">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
+            <tr><th class="py-1 font-normal w-8 text-center">#</th><th class="font-normal">Staff</th><th class="font-normal w-40">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
           </thead>
           <tbody>
           <?php
@@ -379,11 +389,11 @@ admin_header();
               $rank_class = $staff_rank_classes[$i] ?? null;
           ?>
             <tr class="border-t border-neutral-100">
-              <td class="py-1.5">
+              <td class="py-1.5 text-center">
                 <?php if ($rank_class): ?>
                   <span class="dashboard-staff-rank-badge dashboard-rank-<?= e($rank_class) ?>"><?= $i + 1 ?></span>
                 <?php else: ?>
-                  <span class="dashboard-staff-rank-number"><?= $i + 1 ?></span>
+                  <span class="dashboard-staff-rank-number"><?= $i + 1 ?>.</span>
                 <?php endif; ?>
               </td>
               <td class="py-1.5">
@@ -421,7 +431,7 @@ const dashboardDark = document.body.classList.contains('theme-dark');
 const dashboardMuted = dashboardDark ? '#b6c2d2' : '#9ca3af';
 const dashboardGrid = dashboardDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(148, 163, 184, 0.18)';
 const dashboardPanel = dashboardDark ? '#151c2c' : '#ffffff';
-const dashboardStatusColors = ['#6f95ff', '#ffe23f', '#ff8f7f', '#58dda0', '#c78af5'];
+const dashboardStatusColors = <?= json_encode(array_values(array_intersect_key($dashboard_status_colors, $status_map))) ?>;
 
 function mixHexColor(hex, whiteAmount) {
   const clean = String(hex || '').replace('#', '').trim();
@@ -498,8 +508,15 @@ function dashboardExternalTooltip(context) {
   el.querySelector('.dashboard-chart-tooltip-title').textContent = title;
   el.querySelector('.dashboard-chart-tooltip-row span').style.background = color;
   el.querySelector('.dashboard-chart-tooltip-row strong').textContent = value;
-  el.style.left = tooltip.caretX + 'px';
-  el.style.top = tooltip.caretY + 'px';
+  const rawLeft = chart.canvas.offsetLeft + tooltip.caretX;
+  const rawTop = chart.canvas.offsetTop + tooltip.caretY;
+  const isBar = chart.config.type === 'bar';
+  const placeLeft = rawLeft > parent.clientWidth * 0.55;
+  el.classList.toggle('is-side-left', isBar && placeLeft);
+  el.classList.toggle('is-side-right', isBar && !placeLeft);
+  el.classList.toggle('is-below', !isBar && rawTop < 76);
+  el.style.left = rawLeft + 'px';
+  el.style.top = rawTop + 'px';
   el.classList.add('is-visible');
 }
 

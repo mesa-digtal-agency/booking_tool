@@ -161,7 +161,7 @@ window.addEventListener('DOMContentLoaded', function () {
     <label class="block text-sm">Status
       <select name="status" class="mt-1 w-full px-3 py-2 border border-neutral-200 rounded-md">
         <?php foreach (booking_all_statuses() as $s): ?>
-          <option <?= ($booking['status'] ?? 'pending')===$s?'selected':'' ?>><?= $s ?></option>
+          <option value="<?= e($s) ?>" <?= ($booking['status'] ?? 'pending')===$s?'selected':'' ?>><?= e(booking_status_label($s)) ?></option>
         <?php endforeach; ?>
       </select>
     </label>

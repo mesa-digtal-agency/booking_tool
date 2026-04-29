@@ -146,13 +146,7 @@ $hour_end = 24;
 $total_mins = ($hour_end - $hour_start) * 60;
 $initial_scroll_minute = $first_booking_minute === null ? 0 : max(0, $first_booking_minute - 60);
 
-$status_bg = [
-    'confirmed' => '#3b82f6',
-    'pending'   => '#f59e0b',
-    'cancelled' => '#ef4444',
-    'completed' => '#22c55e',
-    'no_show'   => '#a855f7',
-];
+$status_bg = booking_status_colors();
 
 // Nav
 $dt = new DateTime($week_start);
@@ -231,7 +225,7 @@ admin_header();
                     $inline_layout = 'left: calc(' . number_format($lane_left, 6, '.', '') . '% + 4px); width: calc(' . number_format($lane_width, 6, '.', '') . '% - 8px);';
                 ?>
                 <a href="<?= e($href) ?>" class="<?= e($item_class) ?>"
-                   title="<?= !$is_b ? e($item['customer_name'] . ' - ' . $item['service_name'] . ' - ' . $item['staff_name'] . ' - ' . $item['status']) : '' ?>"
+                   title="<?= !$is_b ? e($item['customer_name'] . ' - ' . $item['service_name'] . ' - ' . $item['staff_name'] . ' - ' . booking_status_label((string)$item['status'])) : '' ?>"
                    style="top: <?= $top_px ?>px; height: <?= $height_px ?>px; min-height: <?= $min_card_height ?>px; <?= $inline_layout ?> background: <?= e($bg) ?>; border-left: 3px solid <?= e($border) ?>;">
                    <?php if ($is_b): ?>
                        <div class="font-medium truncate">Blocked - <?= e($item['staff_name']) ?></div>
@@ -240,7 +234,7 @@ admin_header();
                        <div class="font-medium truncate <?= $is_cancelled ? 'line-through decoration-red-300' : '' ?>"><?= e(format_time_display($item['start_time'])) ?> <?= e($item['customer_name']) ?></div>
                        <div class="text-neutral-600 truncate"><?= e($item['service_name']) ?> - <?= e($item['staff_name']) ?></div>
                        <?php if ($is_cancelled): ?>
-                           <div class="text-red-700 truncate mt-1">cancelled</div>
+                           <div class="text-red-700 truncate mt-1"><?= e(booking_status_label((string)$item['status'])) ?></div>
                        <?php endif; ?>
                    <?php endif; ?>
                 </a>
@@ -265,11 +259,9 @@ admin_header();
 </script>
 
 <div class="flex items-center gap-4 text-xs text-neutral-500 mt-3 flex-wrap">
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#3b82f634;border-left:3px solid #3b82f6"></span>Confirmed</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f59e0b34;border-left:3px solid #f59e0b"></span>Pending</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#ef444434;border-left:3px solid #ef4444"></span>Cancelled</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#22c55e34;border-left:3px solid #22c55e"></span>Completed</span>
-    <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#a855f734;border-left:3px solid #a855f7"></span>No-show</span>
+    <?php foreach (['confirmed', 'pending', 'cancelled', 'completed', 'no_show'] as $status): $color = booking_status_color($status); ?>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:<?= e($color) ?>34;border-left:3px solid <?= e($color) ?>"></span><?= e(booking_status_label($status)) ?></span>
+    <?php endforeach; ?>
     <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background:#f8fafc;border-left:3px solid #64748b"></span>Blocked</span>
 </div>
 <?php admin_footer(); ?>

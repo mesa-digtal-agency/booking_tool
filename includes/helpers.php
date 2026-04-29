@@ -170,8 +170,26 @@ function booking_all_statuses(): array {
     return ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
 }
 
+/** Shared booking status colors used by badges, calendar events, and charts. */
+function booking_status_colors(): array {
+    return [
+        'confirmed' => '#6f95ff',
+        'pending'   => '#ffe23f',
+        'cancelled' => '#ff8f7f',
+        'completed' => '#58dda0',
+        'no_show'   => '#c78af5',
+    ];
+}
+
+/** Color for one booking status, with a neutral fallback. */
+function booking_status_color(string $status): string {
+    $colors = booking_status_colors();
+    return $colors[$status] ?? '#64748b';
+}
+
 /** Human label for a booking status. */
 function booking_status_label(string $status): string {
+    if ($status === 'no_show') return 'No-show';
     return ucwords(str_replace('_', ' ', $status));
 }
 

@@ -232,15 +232,15 @@ window.addEventListener('DOMContentLoaded', function () {
   </section>
 
   <section class="bg-white border border-neutral-200 rounded-xl p-5">
-    <h2 class="font-semibold mb-4">Feature Visibility</h2>
+    <h2 class="font-semibold mb-4">Feature visibility</h2>
     <div class="grid md:grid-cols-2 gap-3 text-sm">
       <label class="inline-flex items-center gap-2">
         <input type="checkbox" name="show_import_export" <?= settings_bool($cfg, 'show_import_export', true) ? 'checked' : '' ?>>
-        <span>Show Import / export page</span>
+        <span>Show import / export page</span>
       </label>
       <label class="inline-flex items-center gap-2">
         <input type="checkbox" name="show_settings_page" <?= settings_bool($cfg, 'show_settings_page', true) ? 'checked' : '' ?>>
-        <span>Show Settings page</span>
+        <span>Show settings page</span>
       </label>
     </div>
   </section>

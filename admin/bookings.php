@@ -92,7 +92,7 @@ admin_header();
     <select name="status" class="w-full mt-1 px-2 py-1.5 border border-neutral-200 rounded-md">
       <option value="">All</option>
       <?php foreach (booking_all_statuses() as $s): ?>
-        <option <?= $s===$status_filter?'selected':'' ?>><?= $s ?></option>
+        <option value="<?= e($s) ?>" <?= $s===$status_filter?'selected':'' ?>><?= e(booking_status_label($s)) ?></option>
       <?php endforeach; ?>
     </select>
   </label>
@@ -142,13 +142,7 @@ admin_header();
         <tr><td colspan="9" class="px-3 py-8 text-center text-neutral-500">No bookings match these filters.</td></tr>
       <?php endif; ?>
       <?php foreach ($rows as $r):
-        $colors = [
-          'confirmed' => 'bg-blue-100 text-blue-700',
-          'pending'   => 'bg-amber-100 text-amber-700',
-          'cancelled' => 'bg-red-100 text-red-700',
-          'completed' => 'bg-green-100 text-green-700',
-          'no_show'   => 'bg-violet-100 text-violet-700',
-        ];
+        $status_color = booking_status_color((string)$r['status']);
         $is_cancelled = $r['status'] === 'cancelled';
       ?>
         <tr class="border-t border-neutral-100 <?= $is_cancelled ? 'booking-row-cancelled bg-red-50/30 text-neutral-500' : '' ?>">
@@ -167,7 +161,7 @@ admin_header();
               <span class="text-xs text-neutral-400">-</span>
             <?php endif; ?>
           </td>
-          <td class="px-3 py-2"><span class="text-xs px-2 py-0.5 rounded-full <?= e($colors[$r['status']] ?? '') ?>"><?= e($r['status']) ?></span></td>
+          <td class="px-3 py-2"><span class="booking-status-pill" style="--status-color: <?= e($status_color) ?>"><?= e(booking_status_label((string)$r['status'])) ?></span></td>
           <td class="px-3 py-2"><?= e(money_with_currency($r['price'])) ?></td>
           <td class="px-3 py-2 text-right"><a class="text-primary hover:underline" href="/admin/booking-edit.php?id=<?= (int)$r['id'] ?>">Edit</a></td>
         </tr>
