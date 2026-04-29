@@ -171,6 +171,10 @@ if (is_admin()) {
         [$month_start, $month_end]
     );
 }
+$staff_perf_max = 0;
+foreach ($staff_perf as $p) {
+    $staff_perf_max = max($staff_perf_max, (int)$p['cnt']);
+}
 
 admin_header();
 ?>
@@ -290,7 +294,7 @@ admin_header();
         <div class="dashboard-heatmap-month"><?= e($month) ?></div>
       <?php endforeach; ?>
       <?php
-        $weekday_labels = [1 => 'Mon', 2 => '', 3 => 'Wed', 4 => '', 5 => 'Fri', 6 => '', 7 => ''];
+        $weekday_labels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
         for ($dow = 1; $dow <= 7; $dow++):
       ?>
         <div class="dashboard-heatmap-weekday"><?= e($weekday_labels[$dow]) ?></div>
@@ -366,7 +370,7 @@ admin_header();
       <div class="nice-scroll dashboard-staff-table overflow-y-auto pr-3 flex-1 min-h-0">
         <table class="w-full text-xs">
           <thead class="text-neutral-500 text-left sticky top-0 bg-white">
-            <tr><th class="py-1 font-normal w-10">#</th><th class="font-normal">Staff</th><th class="font-normal">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
+            <tr><th class="py-1 font-normal w-10">#</th><th class="font-normal">Staff</th><th class="font-normal w-40">Bookings</th><th class="font-normal text-right">Revenue</th></tr>
           </thead>
           <tbody>
           <?php
@@ -385,7 +389,13 @@ admin_header();
               <td class="py-1.5">
                 <span class="truncate block"><?= e($p['name']) ?></span>
               </td>
-              <td class="py-1.5"><?= (int)$p['cnt'] ?></td>
+              <?php $booking_pct = $staff_perf_max > 0 ? round(((int)$p['cnt'] / $staff_perf_max) * 100) : 0; ?>
+              <td class="py-1.5">
+                <span class="dashboard-staff-bookings-cell">
+                  <span class="dashboard-staff-booking-meter" style="--booking-fill: <?= (int)$booking_pct ?>%"><span></span></span>
+                  <span class="dashboard-staff-booking-count"><?= (int)$p['cnt'] ?></span>
+                </span>
+              </td>
               <td class="py-1.5 text-right"><?= e(money_with_currency((float)$p['revenue'])) ?></td>
             </tr>
           <?php endforeach; ?>
@@ -411,6 +421,54 @@ const dashboardDark = document.body.classList.contains('theme-dark');
 const dashboardMuted = dashboardDark ? '#b6c2d2' : '#9ca3af';
 const dashboardGrid = dashboardDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(148, 163, 184, 0.18)';
 const dashboardPanel = dashboardDark ? '#151c2c' : '#ffffff';
+const dashboardStatusColors = ['#6f95ff', '#ffe23f', '#ff8f7f', '#58dda0', '#c78af5'];
+
+function mixHexColor(hex, whiteAmount) {
+  const clean = String(hex || '').replace('#', '').trim();
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return hex;
+  const rgb = [0, 2, 4].map(i => parseInt(clean.slice(i, i + 2), 16));
+  const mixed = rgb.map(channel => Math.round(channel + (255 - channel) * whiteAmount));
+  return '#' + mixed.map(channel => channel.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgba(hex, alpha) {
+  const clean = String(hex || '').replace('#', '').trim();
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return `rgba(99, 102, 241, ${alpha})`;
+  const rgb = [0, 2, 4].map(i => parseInt(clean.slice(i, i + 2), 16));
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+}
+
+const dashboardDoughnutGlow = {
+  id: 'dashboardDoughnutGlow',
+  afterDatasetsDraw(chart) {
+    if (chart.config.type !== 'doughnut') return;
+    const active = chart.getActiveElements();
+    if (!active.length) return;
+    const ctx = chart.ctx;
+    active.forEach(({ datasetIndex, index }) => {
+      const dataset = chart.data.datasets[datasetIndex];
+      const arc = chart.getDatasetMeta(datasetIndex).data[index];
+      const colors = dataset.backgroundColor || [];
+      const color = Array.isArray(colors) ? colors[index] : colors;
+      ctx.save();
+      ctx.shadowColor = hexToRgba(color, dashboardDark ? 0.45 : 0.32);
+      ctx.shadowBlur = dashboardSmall ? 16 : 24;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      arc.draw(ctx);
+      ctx.restore();
+    });
+  }
+};
+
+const hourMax = Math.max(...hoursData, 0);
+const hourBarColors = hoursData.map(value => {
+  if (!value || hourMax <= 0) return mixHexColor(primary, 0.68);
+  const ratio = value / hourMax;
+  if (ratio >= 0.67) return primary;
+  if (ratio >= 0.34) return mixHexColor(primary, 0.36);
+  return mixHexColor(primary, 0.60);
+});
 
 function dashboardExternalTooltip(context) {
   const { chart, tooltip } = context;
@@ -449,7 +507,7 @@ const hoursCanvas = document.getElementById('hoursChart');
 if (hoursCanvas) {
   new Chart(hoursCanvas, {
     type: 'bar',
-    data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: primary, borderRadius: { topLeft: 999, topRight: 999, bottomLeft: 0, bottomRight: 0 }, borderSkipped: false, barPercentage: 0.58, categoryPercentage: 0.72 }] },
+    data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: hourBarColors, borderRadius: { topLeft: 999, topRight: 999, bottomLeft: 0, bottomRight: 0 }, borderSkipped: false, barPercentage: 0.58, categoryPercentage: 0.72 }] },
     options: {
       interaction: { intersect: false, mode: 'index' },
       responsive: true, maintainAspectRatio: false,
@@ -491,16 +549,19 @@ if (statusCanvas) {
       labels: ['Confirmed','Pending','Cancelled','Completed','No-show'],
       datasets: [{
         data: [<?= $status_map['confirmed'] ?>, <?= $status_map['pending'] ?>, <?= $status_map['cancelled'] ?>, <?= $status_map['completed'] ?>, <?= $status_map['no_show'] ?>],
-        backgroundColor: ['#60a5fa','#fbbf24','#f87171','#4ade80','#c084fc'],
-        borderWidth: dashboardSmall ? 4 : 6,
+        backgroundColor: dashboardStatusColors,
+        borderWidth: 0,
         borderColor: dashboardPanel,
+        hoverBorderColor: dashboardPanel,
+        hoverBorderWidth: 0,
         borderRadius: 999,
-        hoverOffset: 6,
+        hoverOffset: dashboardSmall ? 3 : 5,
         spacing: 2
       }]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: { padding: dashboardSmall ? 18 : 30 },
       cutout: dashboardSmall ? '60%' : '66%',
       plugins: {
         legend: {
@@ -509,7 +570,8 @@ if (statusCanvas) {
         },
         tooltip: { enabled: false, external: dashboardExternalTooltip }
       }
-    }
+    },
+    plugins: [dashboardDoughnutGlow]
   });
 }
 </script>

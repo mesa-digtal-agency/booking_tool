@@ -238,7 +238,7 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     color: #64748b;
     font-size: 11px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 500;
 }
 .dashboard-chart-tooltip-row {
     display: flex;
@@ -255,7 +255,7 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     color: #111827;
     font-size: 12px;
     line-height: 1;
-    font-weight: 800;
+    font-weight: 500;
 }
 .dashboard-heatmap-card {
     padding: 20px 22px 16px;
@@ -276,10 +276,10 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     background: transparent;
 }
 .dashboard-heatmap-grid {
-    --heatmap-cell: 13px;
-    --heatmap-gap: 6px;
+    --heatmap-cell: 11px;
+    --heatmap-gap: 5px;
     display: grid;
-    grid-template-columns: 32px repeat(var(--heatmap-weeks), var(--heatmap-cell));
+    grid-template-columns: 34px repeat(var(--heatmap-weeks), var(--heatmap-cell));
     grid-auto-rows: var(--heatmap-cell);
     gap: var(--heatmap-gap);
     min-width: max-content;
@@ -312,19 +312,19 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 }
 .dashboard-heatmap-cell.level-1,
 .dashboard-heatmap-legend .level-1 {
-    background: #bbf7d0;
+    background: #c8f7d4;
 }
 .dashboard-heatmap-cell.level-2,
 .dashboard-heatmap-legend .level-2 {
-    background: #86efac;
+    background: #7ee89a;
 }
 .dashboard-heatmap-cell.level-3,
 .dashboard-heatmap-legend .level-3 {
-    background: #4ade80;
+    background: #2fd66b;
 }
 .dashboard-heatmap-cell.level-4,
 .dashboard-heatmap-legend .level-4 {
-    background: #16a34a;
+    background: #0ea957;
 }
 .dashboard-heatmap-cell.is-outside {
     opacity: .45;
@@ -366,6 +366,33 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     justify-content: center;
     color: #6b7280;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.dashboard-staff-bookings-cell {
+    display: grid;
+    grid-template-columns: minmax(72px, 1fr) 24px;
+    align-items: center;
+    gap: 8px;
+}
+.dashboard-staff-booking-meter {
+    display: block;
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf2f7;
+}
+.dashboard-staff-booking-meter span {
+    display: block;
+    width: var(--booking-fill, 0%);
+    height: 100%;
+    min-width: var(--booking-fill, 0%);
+    border-radius: inherit;
+    background: var(--accent-color, var(--primary-color, #7c3aed));
+}
+.dashboard-staff-booking-count {
+    color: #6b7280;
+    font-weight: 700;
+    text-align: right;
     font-variant-numeric: tabular-nums;
 }
 .dashboard-rank-gold {
@@ -1017,19 +1044,26 @@ body.theme-dark label {
 }
 .theme-dark .dashboard-heatmap-cell.level-1,
 .theme-dark .dashboard-heatmap-legend .level-1 {
-    background: #14532d;
+    background: #1d6f3b;
 }
 .theme-dark .dashboard-heatmap-cell.level-2,
 .theme-dark .dashboard-heatmap-legend .level-2 {
-    background: #15803d;
+    background: #259f53;
 }
 .theme-dark .dashboard-heatmap-cell.level-3,
 .theme-dark .dashboard-heatmap-legend .level-3 {
-    background: #22c55e;
+    background: #34d66d;
 }
 .theme-dark .dashboard-heatmap-cell.level-4,
 .theme-dark .dashboard-heatmap-legend .level-4 {
-    background: #86efac;
+    background: #7ef0a3;
+}
+.theme-dark .dashboard-staff-booking-meter {
+    background: #243046;
+}
+.theme-dark .dashboard-staff-booking-count,
+.theme-dark .dashboard-staff-rank-number {
+    color: var(--dark-muted);
 }
 .theme-dark .h-20.border-t,
 .theme-dark .border-t,
