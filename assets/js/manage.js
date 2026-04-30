@@ -104,7 +104,8 @@
   }
 
   cancelBtn.addEventListener('click', async () => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
+    const ok = await window.confirmDialog('Are you sure you want to cancel this booking?', { danger: true, okLabel: 'Yes, cancel it', cancelLabel: 'Keep booking' });
+    if (!ok) return;
     feedback.innerHTML = '';
     try {
       await api('/api/booking-action.php', { method: 'POST', body: { token, action: 'cancel' } });
@@ -149,7 +150,8 @@
 
   async function confirmReschedule(time) {
     feedback.innerHTML = '';
-    if (!confirm(`Confirm new time: ${newDate.value} at ${fmtTime(time)}?`)) return;
+    const ok = await window.confirmDialog(`Confirm new time: ${newDate.value} at ${fmtTime(time)}?`, { okLabel: 'Reschedule', cancelLabel: 'Cancel' });
+    if (!ok) return;
     try {
       await api('/api/booking-action.php', { method: 'POST', body: { token, action: 'reschedule', new_date: newDate.value, new_time: time } });
       feedback.innerHTML = '<div class="text-emerald-700">Your booking has been rescheduled. A confirmation email has been sent.</div>';

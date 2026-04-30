@@ -278,7 +278,7 @@ admin_header();
         <td class="px-3 py-3 text-right">
           <a class="text-primary hover:underline mr-3" href="?edit=<?= (int)$s['id'] ?>">Edit</a>
           <?php if ((int)$s['id'] !== (int)current_user()['id']): ?>
-          <form method="post" class="inline" onsubmit="return confirm('Delete this staff member?')">
+          <form method="post" class="inline" data-confirm-form="Delete this staff member? This cannot be undone.">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
@@ -301,4 +301,19 @@ admin_header();
   </div>
 </div>
 <script src="/assets/js/phone-input.js"></script>
+<script>
+(function () {
+  document.querySelectorAll('[data-confirm-form]').forEach(function (form) {
+    var confirmed = false;
+    form.addEventListener('submit', function (e) {
+      if (confirmed) return;
+      e.preventDefault();
+      window.confirmDialog(form.dataset.confirmForm, { danger: true, okLabel: 'Delete', cancelLabel: 'Cancel' })
+        .then(function (ok) {
+          if (ok) { confirmed = true; HTMLFormElement.prototype.submit.call(form); }
+        });
+    });
+  });
+})();
+</script>
 <?php admin_footer(); ?>

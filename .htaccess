@@ -1,5 +1,5 @@
-# Deny direct access to config, docs, env, and database files
-<FilesMatch "^(config\.json|config\.example\.json|schema\.sql|README\.md|\.gitignore|\.env)$">
+# Deny direct access to config, docs, env, database files, and dev-only tools
+<FilesMatch "^(config\.json|config\.example\.json|schema\.sql|README\.md|\.gitignore|\.env|api-test\.html)$">
     Require all denied
 </FilesMatch>
 
@@ -9,7 +9,7 @@
 
 # Fallback for Apache < 2.4
 <IfModule !mod_authz_core.c>
-    <FilesMatch "^(config\.json|config\.example\.json|schema\.sql|README\.md|\.gitignore|\.env)$">
+    <FilesMatch "^(config\.json|config\.example\.json|schema\.sql|README\.md|\.gitignore|\.env|api-test\.html)$">
         Order allow,deny
         Deny from all
     </FilesMatch>
