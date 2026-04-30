@@ -51,11 +51,11 @@ $font_url = app_font_stylesheet_url();
 <main class="max-w-3xl mx-auto px-4 py-4 pb-24">
     <!-- Step indicator -->
     <ol id="steps" class="booking-steps flex items-center mb-6 text-xs text-neutral-500">
-        <li data-step="1" class="step flex-1 text-center border-b-2 pb-2 border-primary text-primary font-medium">1 · Service</li>
-        <li data-step="2" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">2 · Stylist</li>
-        <li data-step="3" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">3 · Date &amp; time</li>
-        <li data-step="4" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">4 · Details</li>
-        <li data-step="5" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">5 · Confirm</li>
+        <li data-step="1" class="step flex-1 text-center border-b-2 pb-2 border-primary text-primary font-medium">1<span class="hidden sm:inline"> · Service</span></li>
+        <li data-step="2" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">2<span class="hidden sm:inline"> · Stylist</span></li>
+        <li data-step="3" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">3<span class="hidden sm:inline"> · Date &amp; time</span></li>
+        <li data-step="4" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">4<span class="hidden sm:inline"> · Details</span></li>
+        <li data-step="5" class="step flex-1 text-center border-b-2 pb-2 border-neutral-200">5<span class="hidden sm:inline"> · Confirm</span></li>
     </ol>
 
     <!-- Step 1: Services -->
