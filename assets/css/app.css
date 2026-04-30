@@ -115,14 +115,15 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     width: 100%;
 }
 .dashboard-grid {
-    min-height: calc(100vh - 116px);
-    grid-template-rows: auto auto minmax(320px, 1fr);
+    min-height: 0;
 }
+.dashboard-row-charts,
 .dashboard-row-middle,
 .dashboard-row-lower,
 .dashboard-row-bottom {
     align-items: stretch;
 }
+.dashboard-row-charts > *,
 .dashboard-row-middle > *,
 .dashboard-row-lower > *,
 .dashboard-row-bottom > * {
@@ -137,11 +138,18 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 .dashboard-staff-performance-card {
     min-height: 0;
 }
+@media (min-width: 1280px) {
+    .dashboard-grid {
+        height: calc(100dvh - 112px);
+        grid-template-rows: auto auto minmax(0, 1fr);
+    }
+}
 @media (max-width: 1023px) {
     .dashboard-grid {
         min-height: 0;
         grid-template-rows: none;
     }
+    .dashboard-row-charts > *,
     .dashboard-row-middle > *,
     .dashboard-row-lower > *,
     .dashboard-row-bottom > * {

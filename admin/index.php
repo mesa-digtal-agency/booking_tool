@@ -78,12 +78,12 @@ $stats = [
     'month' => stat_counts($month_start, $month_end, $scope_where),
 ];
 
-// Top 3 services (by booking count this month).
+// Top 10 services (by booking count this month).
 $top_services = db_all(
     "SELECT s.name, COUNT(*) AS cnt
      FROM bookings b JOIN services s ON s.id = b.service_id
      WHERE b.booking_date BETWEEN ? AND ? {$scope_where}
-     GROUP BY s.id, s.name ORDER BY cnt DESC LIMIT 3",
+     GROUP BY s.id, s.name ORDER BY cnt DESC LIMIT 10",
     [$month_start, $month_end]
 );
 
@@ -135,7 +135,18 @@ for ($m = 1; $m <= 12; $m++) {
     }
 }
 
-// Limit upcoming to 4 — keeps the dashboard compact.
+// Upcoming bookings use their own dashboard pagination.
+$upcoming_page = max(1, (int)($_GET['upcoming_page'] ?? 1));
+$upcoming_per_page = max(4, min(30, (int)($_GET['upcoming_per_page'] ?? 8)));
+$upcoming_total = (int)db_scalar(
+    "SELECT COUNT(*)
+     FROM bookings b
+     WHERE b.booking_date >= ? AND b.status IN ('pending','confirmed') {$scope_where}",
+    [$today]
+);
+$upcoming_total_pages = max(1, (int)ceil($upcoming_total / $upcoming_per_page));
+if ($upcoming_page > $upcoming_total_pages) $upcoming_page = $upcoming_total_pages;
+$upcoming_offset = ($upcoming_page - 1) * $upcoming_per_page;
 $upcoming = db_all(
     "SELECT b.id, b.booking_date, b.start_time, b.status, b.customer_name,
             s.name AS service_name, st.name AS staff_name
@@ -143,7 +154,7 @@ $upcoming = db_all(
      JOIN services s ON s.id = b.service_id
      JOIN staff st  ON st.id = b.staff_id
      WHERE b.booking_date >= ? AND b.status IN ('pending','confirmed') {$scope_where}
-     ORDER BY b.booking_date, b.start_time LIMIT 4",
+     ORDER BY b.booking_date, b.start_time LIMIT $upcoming_per_page OFFSET $upcoming_offset",
     [$today]
 );
 
@@ -370,44 +381,61 @@ admin_header();
 </div>
 
     <div class="dashboard-row-bottom grid md:grid-cols-2 gap-3 min-h-0">
-      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col"
+           data-dashboard-upcoming-card
+           data-upcoming-page="<?= (int)$upcoming_page ?>"
+           data-upcoming-per-page="<?= (int)$upcoming_per_page ?>"
+           data-upcoming-total="<?= (int)$upcoming_total ?>">
         <div class="dashboard-diagram-header">
           <div class="dashboard-diagram-title">Upcoming bookings</div>
-          <div class="dashboard-diagram-chip">Next 4</div>
+          <div class="dashboard-diagram-chip"><?= $upcoming_total ? e(($upcoming_offset + 1) . '-' . min($upcoming_total, $upcoming_offset + count($upcoming)) . ' of ' . $upcoming_total) : '0' ?></div>
         </div>
         <?php if (!$upcoming): ?>
           <div class="text-xs text-neutral-500">Nothing coming up.</div>
         <?php else: ?>
-          <ul class="divide-y divide-neutral-100">
-            <?php foreach ($upcoming as $u): ?>
-              <li class="py-1.5 flex items-center justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <div class="text-xs font-medium truncate"><?= e($u['customer_name']) ?> <span class="text-neutral-400">&middot;</span> <?= e($u['service_name']) ?></div>
-                  <div class="text-[11px] text-neutral-500 truncate"><?= e($u['booking_date']) ?> &middot; <?= e(format_time_display($u['start_time'])) ?> &middot; <?= e($u['staff_name']) ?></div>
-                </div>
-                <a class="text-[11px] text-primary hover:underline flex-shrink-0" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
-              </li>
-            <?php endforeach; ?>
-          </ul>
+          <div class="nice-scroll flex-1 min-h-0 overflow-y-auto pr-2" data-upcoming-list-viewport>
+            <ul class="divide-y divide-neutral-100">
+              <?php foreach ($upcoming as $u): ?>
+                <li class="py-1.5 flex items-center justify-between gap-2" data-upcoming-item>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-xs font-medium truncate"><?= e($u['customer_name']) ?> <span class="text-neutral-400">&middot;</span> <?= e($u['service_name']) ?></div>
+                    <div class="text-[11px] text-neutral-500 truncate"><?= e($u['booking_date']) ?> &middot; <?= e(format_time_display($u['start_time'])) ?> &middot; <?= e($u['staff_name']) ?></div>
+                  </div>
+                  <a class="text-[11px] text-primary hover:underline flex-shrink-0" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+          <div class="mt-auto pt-3 flex items-center justify-between text-[11px] text-neutral-500" data-upcoming-pager>
+            <div>Page <?= (int)$upcoming_page ?> of <?= (int)$upcoming_total_pages ?></div>
+            <div class="flex items-center gap-2">
+              <?php $upcoming_query = $_GET; $upcoming_query['upcoming_page'] = max(1, $upcoming_page - 1); ?>
+              <a data-upcoming-pagination-link class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $upcoming_page <= 1 ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($upcoming_query)) ?>">Prev</a>
+              <?php $upcoming_query['upcoming_page'] = min($upcoming_total_pages, $upcoming_page + 1); ?>
+              <a data-upcoming-pagination-link class="px-2 py-1 rounded border border-neutral-200 bg-white <?= $upcoming_page >= $upcoming_total_pages ? 'pointer-events-none opacity-50' : '' ?>" href="?<?= e(http_build_query($upcoming_query)) ?>">Next</a>
+            </div>
+          </div>
         <?php endif; ?>
       </div>
 
-      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
+      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
         <div class="dashboard-diagram-header">
           <div class="dashboard-diagram-title">Top services</div>
-          <div class="dashboard-diagram-chip">This month</div>
+          <div class="dashboard-diagram-chip">Top 10</div>
         </div>
         <?php if (!$top_services): ?>
           <div class="text-xs text-neutral-500">No bookings yet.</div>
         <?php else: ?>
-          <ol class="space-y-1.5">
-            <?php foreach ($top_services as $i => $s): ?>
-              <li class="flex items-center justify-between gap-2">
-                <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
-                <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> <?= (int)$s['cnt'] === 1 ? 'booking' : 'bookings' ?></span>
-              </li>
-            <?php endforeach; ?>
-          </ol>
+          <div class="nice-scroll flex-1 min-h-0 overflow-y-auto pr-2">
+            <ol class="space-y-1.5">
+              <?php foreach ($top_services as $i => $s): ?>
+                <li class="flex items-center justify-between gap-2">
+                  <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
+                  <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> <?= (int)$s['cnt'] === 1 ? 'booking' : 'bookings' ?></span>
+                </li>
+              <?php endforeach; ?>
+            </ol>
+          </div>
         <?php endif; ?>
       </div>
     </div>
@@ -475,6 +503,78 @@ const dashboardMuted = dashboardDark ? '#b6c2d2' : '#9ca3af';
 const dashboardGrid = dashboardDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(148, 163, 184, 0.18)';
 const dashboardPanel = dashboardDark ? '#151c2c' : '#ffffff';
 const dashboardStatusColors = <?= json_encode(array_values(array_intersect_key($dashboard_status_colors, $status_map))) ?>;
+
+function syncDashboardUpcomingPageSize() {
+  const card = document.querySelector('[data-dashboard-upcoming-card]');
+  if (!card) return;
+
+  const total = Number(card.dataset.upcomingTotal || 0);
+  const currentSize = Number(card.dataset.upcomingPerPage || 8);
+  const currentPage = Number(card.dataset.upcomingPage || 1);
+  const viewport = card.querySelector('[data-upcoming-list-viewport]');
+  const firstItem = card.querySelector('[data-upcoming-item]');
+  if (!viewport || !firstItem || !total || !currentSize) return;
+
+  const rowHeight = firstItem.getBoundingClientRect().height;
+  const visibleHeight = viewport.getBoundingClientRect().height;
+  if (!rowHeight || !visibleHeight) return;
+
+  const desiredSize = Math.max(4, Math.min(30, Math.floor(visibleHeight / rowHeight)));
+  if (!desiredSize || desiredSize === currentSize) return;
+  if (total <= desiredSize && currentSize >= total) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const firstVisibleIndex = Math.max(0, (currentPage - 1) * currentSize);
+  params.set('upcoming_per_page', String(desiredSize));
+  params.set('upcoming_page', String(Math.floor(firstVisibleIndex / desiredSize) + 1));
+  updateDashboardUpcomingCard(window.location.pathname + '?' + params.toString() + window.location.hash, false);
+}
+
+window.addEventListener('load', syncDashboardUpcomingPageSize, { once: true });
+
+async function updateDashboardUpcomingCard(url, pushState = true) {
+  const card = document.querySelector('[data-dashboard-upcoming-card]');
+  if (!card) return false;
+
+  card.setAttribute('aria-busy', 'true');
+  card.style.opacity = '.62';
+  try {
+    const response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'fetch' }
+    });
+    if (!response.ok) throw new Error('Request failed');
+
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const nextCard = doc.querySelector('[data-dashboard-upcoming-card]');
+    if (!nextCard) throw new Error('Upcoming card missing');
+
+    card.replaceWith(nextCard);
+    if (pushState) window.history.pushState({ upcomingCard: true }, '', url);
+    return true;
+  } catch (error) {
+    window.location.href = url;
+    return false;
+  } finally {
+    const latestCard = document.querySelector('[data-dashboard-upcoming-card]');
+    if (latestCard) {
+      latestCard.removeAttribute('aria-busy');
+      latestCard.style.opacity = '';
+    }
+  }
+}
+
+document.addEventListener('click', function (event) {
+  const link = event.target.closest('[data-upcoming-pagination-link]');
+  if (!link || link.classList.contains('pointer-events-none')) return;
+  event.preventDefault();
+  updateDashboardUpcomingCard(link.href);
+});
+
+window.addEventListener('popstate', function () {
+  updateDashboardUpcomingCard(window.location.href, false);
+});
 
 function mixHexColor(hex, whiteAmount) {
   const clean = String(hex || '').replace('#', '').trim();
