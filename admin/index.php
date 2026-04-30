@@ -282,8 +282,8 @@ admin_header();
 </div>
 
 <!-- Row 3: lower dashboard -->
-<div class="dashboard-row-lower grid lg:grid-cols-3 gap-3 min-h-0">
-  <div class="dashboard-lower-left lg:col-span-2 grid gap-3 min-h-0">
+<div class="dashboard-row-lower grid lg:grid-cols-5 gap-3 min-h-0">
+  <div class="dashboard-lower-left lg:col-span-3 grid gap-3 min-h-0">
 <div class="dashboard-diagram-card dashboard-heatmap-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
   <div class="dashboard-diagram-header">
     <div class="dashboard-diagram-title">Busiest days</div>
@@ -370,7 +370,7 @@ admin_header();
   </div>
 
   <?php if (is_admin()): ?>
-  <div class="dashboard-diagram-card dashboard-staff-performance-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+  <div class="dashboard-diagram-card dashboard-staff-performance-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col lg:col-span-2">
     <div class="dashboard-diagram-header">
       <div class="dashboard-diagram-title">Staff performance</div>
       <div class="dashboard-diagram-chip">This month</div>
