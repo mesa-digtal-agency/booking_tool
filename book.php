@@ -12,7 +12,9 @@ $font_url = app_font_stylesheet_url();
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Book with <?= e($biz) ?></title>
+    <meta name="description" content="Book an appointment online with <?= e($biz) ?>. Choose a service, pick a time, and confirm instantly.">
     <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <link rel="icon" href="data:image/svg+xml,<?= rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="' . e($primary) . '"/></svg>') ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = { theme: { extend: { colors: { primary: '<?= e($primary) ?>' } } } };

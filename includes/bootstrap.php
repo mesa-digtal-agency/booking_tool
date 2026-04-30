@@ -110,6 +110,23 @@ if (!headers_sent()) {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('X-XSS-Protection: 1; mode=block');
+    // CSP: unsafe-inline is required because Tailwind CDN and inline <style>/<script>
+    // blocks are used throughout. The most valuable restrictions here are
+    // connect-src 'self' (blocks data exfiltration), object-src 'none' (no plugins),
+    // base-uri 'self' (blocks base-tag injection), and form-action 'self'.
+    header(
+        "Content-Security-Policy: default-src 'self'; " .
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; " .
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
+        "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
+        "img-src 'self' data: https:; " .
+        "connect-src 'self'; " .
+        "object-src 'none'; " .
+        "base-uri 'self'; " .
+        "form-action 'self'; " .
+        "frame-ancestors 'self';"
+    );
 }
 
 // Session config (secure defaults, SameSite=Lax)

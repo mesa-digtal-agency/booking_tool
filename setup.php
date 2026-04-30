@@ -174,6 +174,7 @@ function render_page(string $title, string $content): string {
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>' . e($title) . ' · ' . e(business_name()) . '</title>
+<meta name="robots" content="noindex, nofollow">
 <style>
   :root { --p: ' . e($primary) . '; }
   * { box-sizing: border-box; }
