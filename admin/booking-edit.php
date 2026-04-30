@@ -194,7 +194,7 @@ window.addEventListener('DOMContentLoaded', function () {
     <button class="px-4 py-2 rounded-lg text-white text-sm" style="background: <?= e(primary_color()) ?>">Save</button>
     <a href="/admin/bookings.php" class="px-4 py-2 rounded-lg border border-neutral-200 text-sm bg-white">Cancel</a>
     <?php if (!empty($booking['id']) && is_admin()): ?>
-      <button name="action" value="delete" onclick="return confirm('Delete this booking?')" class="ml-auto px-4 py-2 rounded-lg border border-red-500 text-red-600 bg-white text-sm">Delete</button>
+      <button name="action" value="delete" data-confirm-delete class="ml-auto px-4 py-2 rounded-lg border border-red-500 text-red-600 bg-white text-sm">Delete</button>
     <?php endif; ?>
   </div>
 </form>
@@ -207,6 +207,21 @@ window.addEventListener('DOMContentLoaded', function () {
   if (!form) return;
 
   function toMinutes(t) { const [h,m] = t.split(':'); return (+h)*60 + (+m); }
+
+  // Intercept the delete button to show a styled confirm dialog instead of browser confirm().
+  const deleteBtn = form.querySelector('[data-confirm-delete]');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.confirmDialog('Delete this booking? This cannot be undone.', { danger: true, okLabel: 'Delete', cancelLabel: 'Cancel' })
+        .then(function (ok) {
+          if (ok) {
+            deleteBtn.removeAttribute('data-confirm-delete');
+            deleteBtn.click();
+          }
+        });
+    });
+  }
 
   form.addEventListener('submit', function(e){
     // Skip the working-hours check if the user clicked the Delete button.

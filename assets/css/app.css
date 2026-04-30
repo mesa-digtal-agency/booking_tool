@@ -546,6 +546,7 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 }
 .settings-color-picker .container-items {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     min-height: 48px;
     padding: 8px 6px;
