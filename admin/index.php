@@ -281,8 +281,9 @@ admin_header();
   </div>
 </div>
 
-<!-- Row 3: busiest days -->
-<div class="dashboard-row-middle grid gap-3 min-h-0">
+<!-- Row 3: lower dashboard -->
+<div class="dashboard-row-lower grid lg:grid-cols-3 gap-3 min-h-0">
+  <div class="dashboard-lower-left lg:col-span-2 grid gap-3 min-h-0">
 <div class="dashboard-diagram-card dashboard-heatmap-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
   <div class="dashboard-diagram-header">
     <div class="dashboard-diagram-title">Busiest days</div>
@@ -323,53 +324,53 @@ admin_header();
     <span>More</span>
   </div>
 </div>
-</div>
 
-<!-- Row 4: compact summaries -->
-<div class="dashboard-row-bottom grid lg:grid-cols-3 gap-3 min-h-0">
-  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
-    <div class="dashboard-diagram-header">
-      <div class="dashboard-diagram-title">Upcoming bookings</div>
-      <div class="dashboard-diagram-chip">Next 4</div>
-    </div>
-    <?php if (!$upcoming): ?>
-      <div class="text-xs text-neutral-500">Nothing coming up.</div>
-    <?php else: ?>
-      <ul class="divide-y divide-neutral-100">
-        <?php foreach ($upcoming as $u): ?>
-          <li class="py-1.5 flex items-center justify-between gap-2">
-            <div class="min-w-0 flex-1">
-              <div class="text-xs font-medium truncate"><?= e($u['customer_name']) ?> <span class="text-neutral-400">·</span> <?= e($u['service_name']) ?></div>
-              <div class="text-[11px] text-neutral-500 truncate"><?= e($u['booking_date']) ?> · <?= e(format_time_display($u['start_time'])) ?> · <?= e($u['staff_name']) ?></div>
-            </div>
-            <a class="text-[11px] text-primary hover:underline flex-shrink-0" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
-          </li>
-        <?php endforeach; ?>
-      </ul>
-    <?php endif; ?>
-  </div>
+    <div class="dashboard-row-bottom grid md:grid-cols-2 gap-3 min-h-0">
+      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+        <div class="dashboard-diagram-header">
+          <div class="dashboard-diagram-title">Upcoming bookings</div>
+          <div class="dashboard-diagram-chip">Next 4</div>
+        </div>
+        <?php if (!$upcoming): ?>
+          <div class="text-xs text-neutral-500">Nothing coming up.</div>
+        <?php else: ?>
+          <ul class="divide-y divide-neutral-100">
+            <?php foreach ($upcoming as $u): ?>
+              <li class="py-1.5 flex items-center justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-medium truncate"><?= e($u['customer_name']) ?> <span class="text-neutral-400">&middot;</span> <?= e($u['service_name']) ?></div>
+                  <div class="text-[11px] text-neutral-500 truncate"><?= e($u['booking_date']) ?> &middot; <?= e(format_time_display($u['start_time'])) ?> &middot; <?= e($u['staff_name']) ?></div>
+                </div>
+                <a class="text-[11px] text-primary hover:underline flex-shrink-0" href="/admin/booking-edit.php?id=<?= (int)$u['id'] ?>">Open</a>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+      </div>
 
-  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
-    <div class="dashboard-diagram-header">
-      <div class="dashboard-diagram-title">Top services</div>
-      <div class="dashboard-diagram-chip">This month</div>
+      <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
+        <div class="dashboard-diagram-header">
+          <div class="dashboard-diagram-title">Top services</div>
+          <div class="dashboard-diagram-chip">This month</div>
+        </div>
+        <?php if (!$top_services): ?>
+          <div class="text-xs text-neutral-500">No bookings yet.</div>
+        <?php else: ?>
+          <ol class="space-y-1.5">
+            <?php foreach ($top_services as $i => $s): ?>
+              <li class="flex items-center justify-between gap-2">
+                <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
+                <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> <?= (int)$s['cnt'] === 1 ? 'booking' : 'bookings' ?></span>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+      </div>
     </div>
-    <?php if (!$top_services): ?>
-      <div class="text-xs text-neutral-500">No bookings yet.</div>
-    <?php else: ?>
-      <ol class="space-y-1.5">
-        <?php foreach ($top_services as $i => $s): ?>
-          <li class="flex items-center justify-between gap-2">
-            <span class="text-xs min-w-0 truncate"><span class="text-neutral-400 mr-2"><?= $i+1 ?>.</span><?= e($s['name']) ?></span>
-            <span class="text-[11px] text-neutral-500 flex-shrink-0"><?= (int)$s['cnt'] ?> <?= (int)$s['cnt'] === 1 ? 'booking' : 'bookings' ?></span>
-          </li>
-        <?php endforeach; ?>
-      </ol>
-    <?php endif; ?>
   </div>
 
   <?php if (is_admin()): ?>
-  <div class="dashboard-diagram-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
+  <div class="dashboard-diagram-card dashboard-staff-performance-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0 flex flex-col">
     <div class="dashboard-diagram-header">
       <div class="dashboard-diagram-title">Staff performance</div>
       <div class="dashboard-diagram-chip">This month</div>
@@ -414,11 +415,9 @@ admin_header();
       </div>
     <?php endif; ?>
   </div>
-  <?php else: ?>
-  <!-- Placeholder keeps the lower dashboard row balanced for staff role. -->
-  <div></div>
   <?php endif; ?>
 </div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -503,6 +502,11 @@ function dashboardExternalTooltip(context) {
   const value = chart.config.type === 'bar'
     ? `${point.parsed.y} ${point.parsed.y === 1 ? 'booking' : 'bookings'}`
     : `${point.parsed} ${point.parsed === 1 ? 'booking' : 'bookings'}`;
+  const numericValue = chart.config.type === 'bar' ? point.parsed.y : point.parsed;
+  if (!numericValue || numericValue <= 0) {
+    el.classList.remove('is-visible', 'is-below', 'is-side-left', 'is-side-right');
+    return;
+  }
   const color = point.element.options.backgroundColor || point.dataset.backgroundColor || primary;
 
   el.querySelector('.dashboard-chart-tooltip-title').textContent = title;
