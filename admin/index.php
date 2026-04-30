@@ -35,6 +35,43 @@ function stat_counts(string $from, string $to, string $scope_where): array {
     ];
 }
 
+function dashboard_working_hour_range(?int $staff_id): array {
+    $where = "st.is_active = 1 AND wh.is_off = 0";
+    $params = [];
+    if ($staff_id !== null) {
+        $where .= " AND wh.staff_id = ?";
+        $params[] = $staff_id;
+    }
+
+    $rows = db_all(
+        "SELECT wh.start_time, wh.end_time
+         FROM working_hours wh
+         JOIN staff st ON st.id = wh.staff_id
+         WHERE {$where}",
+        $params
+    );
+
+    $start_hour = null;
+    $end_hour = null;
+    foreach ($rows as $row) {
+        $start_min = time_to_minutes((string)$row['start_time']);
+        $end_min = time_to_minutes((string)$row['end_time']);
+        if ($start_min === 0 && $end_min === 0) {
+            return [0, 24];
+        }
+        if ($end_min <= $start_min) {
+            continue;
+        }
+        $start_hour = min($start_hour ?? intdiv($start_min, 60), intdiv($start_min, 60));
+        $end_hour = max($end_hour ?? (int)ceil($end_min / 60), (int)ceil($end_min / 60));
+    }
+
+    if ($start_hour === null || $end_hour === null || $end_hour <= $start_hour) {
+        return [0, 24];
+    }
+    return [max(0, $start_hour), min(24, $end_hour)];
+}
+
 $stats = [
     'today' => stat_counts($today, $today, $scope_where),
     'week'  => stat_counts($monday, $sunday, $scope_where),
@@ -60,7 +97,14 @@ $busiest = db_all(
 );
 $hour_map = array_fill(0, 24, 0);
 foreach ($busiest as $r) $hour_map[(int)$r['hr']] = (int)$r['cnt'];
-$has_hour_data = array_sum($hour_map) > 0;
+[$chart_hour_start, $chart_hour_end] = dashboard_working_hour_range($scope);
+$hour_labels = [];
+$hour_values = [];
+for ($h = $chart_hour_start; $h < $chart_hour_end; $h++) {
+    $hour_labels[] = format_time_display(sprintf('%02d:00', $h));
+    $hour_values[] = $hour_map[$h] ?? 0;
+}
+$has_hour_data = array_sum($hour_values) > 0;
 
 // Busiest days (this year) - contribution-style heatmap.
 $heatmap_year = (int)$today_dt->format('Y');
@@ -307,7 +351,7 @@ admin_header();
             $outside = $cell_dt < $year_start || $cell_dt > $year_end;
             $level = 0;
             if (!$outside && $count > 0 && $heatmap_max > 0) {
-                $level = max(1, min(4, (int)ceil(($count / $heatmap_max) * 4)));
+                $level = max(1, min(6, (int)ceil(($count / $heatmap_max) * 6)));
             }
             $label = $outside
                 ? ''
@@ -320,7 +364,7 @@ admin_header();
   </div>
   <div class="dashboard-heatmap-legend" aria-hidden="true">
     <span>Less</span>
-    <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i>
+    <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><i class="level-5"></i><i class="level-6"></i>
     <span>More</span>
   </div>
 </div>
@@ -422,8 +466,8 @@ admin_header();
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const hoursLabels = <?= json_encode(array_map(fn($h) => format_time_display(sprintf('%02d:00', $h)), range(0, 23))) ?>;
-const hoursData = <?= json_encode(array_values($hour_map)) ?>;
+const hoursLabels = <?= json_encode($hour_labels) ?>;
+const hoursData = <?= json_encode($hour_values) ?>;
 const primary = '<?= e($primary = primary_color()) ?>';
 const dashboardSmall = window.matchMedia('(max-width: 640px)').matches;
 const dashboardDark = document.body.classList.contains('theme-dark');

@@ -210,7 +210,7 @@ admin_header();
                     $pxPerMin = 80 / 60; // h-20 = 80px per hour
                     $top_px = max(0, $sm * $pxPerMin);
                     $is_cancelled = !$is_b && ($item['status'] ?? '') === 'cancelled';
-                    $min_card_height = $is_cancelled ? 64 : 44;
+                    $min_card_height = calendar_item_min_height_px($item);
                     $height_px = max($min_card_height, ($em - $sm) * $pxPerMin); // keep short slots readable
                     $lane = max(0, (int)($item['__lane'] ?? 0));
                     $lane_count = max(1, (int)($item['__lane_count'] ?? 1));
@@ -308,7 +308,7 @@ function calendar_items_with_lanes(array $items): array {
     $cluster_end = null;
     foreach ($items as $item) {
         $start = time_to_minutes($item['start_time']);
-        $end = time_to_minutes($item['end_time']);
+        $end = calendar_item_visual_end_minutes($item);
         if ($cluster && $cluster_end !== null && $start >= $cluster_end) {
             array_push($out, ...calendar_assign_lanes($cluster));
             $cluster = [];
@@ -334,7 +334,7 @@ function calendar_assign_lanes(array $cluster): array {
     $lane_ends = [];
     foreach ($cluster as &$item) {
         $start = time_to_minutes($item['start_time']);
-        $end = time_to_minutes($item['end_time']);
+        $end = calendar_item_visual_end_minutes($item);
         $lane = 0;
         while (isset($lane_ends[$lane]) && $lane_ends[$lane] > $start) {
             $lane++;
@@ -350,4 +350,22 @@ function calendar_assign_lanes(array $cluster): array {
     }
     unset($item);
     return $cluster;
+}
+
+function calendar_item_visual_end_minutes(array $item): int {
+    $start = time_to_minutes($item['start_time']);
+    $end = time_to_minutes($item['end_time']);
+    if ($end <= $start) {
+        $end = 24 * 60;
+    }
+
+    $min_height_px = calendar_item_min_height_px($item);
+    $min_minutes = (int)ceil($min_height_px * 60 / 80);
+
+    return max($end, $start + $min_minutes);
+}
+
+function calendar_item_min_height_px(array $item): int {
+    $is_cancelled = (($item['__type'] ?? '') !== 'blocked') && (($item['status'] ?? '') === 'cancelled');
+    return $is_cancelled ? 64 : 44;
 }

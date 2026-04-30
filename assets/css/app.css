@@ -372,19 +372,27 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 }
 .dashboard-heatmap-cell.level-1,
 .dashboard-heatmap-legend .level-1 {
-    background: #c8f7d4;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 18%, #ffffff);
 }
 .dashboard-heatmap-cell.level-2,
 .dashboard-heatmap-legend .level-2 {
-    background: #7ee89a;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 34%, #ffffff);
 }
 .dashboard-heatmap-cell.level-3,
 .dashboard-heatmap-legend .level-3 {
-    background: #2fd66b;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 50%, #ffffff);
 }
 .dashboard-heatmap-cell.level-4,
 .dashboard-heatmap-legend .level-4 {
-    background: #0ea957;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 66%, #ffffff);
+}
+.dashboard-heatmap-cell.level-5,
+.dashboard-heatmap-legend .level-5 {
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 82%, #ffffff);
+}
+.dashboard-heatmap-cell.level-6,
+.dashboard-heatmap-legend .level-6 {
+    background: var(--accent-color, var(--primary-color, #7c3aed));
 }
 .dashboard-heatmap-cell.is-outside {
     opacity: .62;
@@ -1108,19 +1116,27 @@ body.theme-dark label {
 }
 .theme-dark .dashboard-heatmap-cell.level-1,
 .theme-dark .dashboard-heatmap-legend .level-1 {
-    background: #1d6f3b;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 24%, #243046);
 }
 .theme-dark .dashboard-heatmap-cell.level-2,
 .theme-dark .dashboard-heatmap-legend .level-2 {
-    background: #259f53;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 38%, #243046);
 }
 .theme-dark .dashboard-heatmap-cell.level-3,
 .theme-dark .dashboard-heatmap-legend .level-3 {
-    background: #34d66d;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 52%, #243046);
 }
 .theme-dark .dashboard-heatmap-cell.level-4,
 .theme-dark .dashboard-heatmap-legend .level-4 {
-    background: #7ef0a3;
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 68%, #243046);
+}
+.theme-dark .dashboard-heatmap-cell.level-5,
+.theme-dark .dashboard-heatmap-legend .level-5 {
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 84%, #243046);
+}
+.theme-dark .dashboard-heatmap-cell.level-6,
+.theme-dark .dashboard-heatmap-legend .level-6 {
+    background: var(--accent-color, var(--primary-color, #7c3aed));
 }
 .theme-dark .dashboard-staff-booking-meter {
     background: #243046;
