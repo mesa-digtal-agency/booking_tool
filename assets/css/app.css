@@ -194,6 +194,41 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     position: relative;
     overflow: visible;
 }
+.dashboard-hours-chart-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: relative;
+}
+.dashboard-hours-chart-scroll::-webkit-scrollbar {
+    height: 6px;
+}
+.dashboard-hours-chart-scroll::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 999px;
+}
+.dashboard-hours-chart-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.dashboard-hours-chart-wrap {
+    height: 100%;
+    min-height: 190px;
+    min-width: max(100%, calc(var(--hour-slots, 24) * 22px));
+}
+@media (min-width: 768px) {
+    .dashboard-hours-chart-wrap {
+        min-height: 260px;
+    }
+}
+@media (max-width: 640px) {
+    .dashboard-hours-chart-scroll {
+        overflow-x: hidden;
+    }
+    .dashboard-hours-chart-wrap {
+        width: 100%;
+        min-width: 100%;
+    }
+}
 .dashboard-donut-wrap {
     display: flex;
     align-items: center;
@@ -317,14 +352,24 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     line-height: 1;
     font-weight: 500;
 }
+.dashboard-heatmap-tooltip {
+    z-index: 18;
+}
 .dashboard-heatmap-card {
+    position: relative;
     padding: 20px 20px 16px;
+}
+.dashboard-heatmap-mobile,
+.dashboard-heatmap-mobile-label {
+    display: none;
 }
 .dashboard-heatmap-scroll {
     overflow-x: auto;
     overflow-y: hidden;
     padding: 6px 0 0;
     width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
 }
 .dashboard-heatmap-scroll::-webkit-scrollbar {
     height: 6px;
@@ -377,6 +422,14 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     justify-self: stretch;
     border-radius: 5px;
     background: #e9eef5;
+    cursor: default;
+}
+.dashboard-heatmap-cell:not(.is-outside)[tabindex="0"] {
+    cursor: pointer;
+}
+.dashboard-heatmap-cell:focus-visible {
+    outline: 2px solid var(--accent-color, var(--primary-color, #7c3aed));
+    outline-offset: 2px;
 }
 .dashboard-heatmap-cell.level-1,
 .dashboard-heatmap-legend .level-1 {
@@ -402,6 +455,9 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
 .dashboard-heatmap-legend .level-6 {
     background: var(--accent-color, var(--primary-color, #7c3aed));
 }
+.dashboard-heatmap-cell.is-peak {
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 72%, #111827);
+}
 .dashboard-heatmap-cell.is-outside {
     opacity: .62;
 }
@@ -421,6 +477,80 @@ nav.overflow-y-auto::-webkit-scrollbar-thumb { background: #e5e7eb; border-radiu
     height: 12px;
     border-radius: 5px;
     background: #e9eef5;
+}
+@media (max-width: 640px) {
+    .dashboard-heatmap-card {
+        padding: 14px 12px 12px;
+    }
+    .dashboard-heatmap-desktop,
+    .dashboard-heatmap-desktop-label {
+        display: none;
+    }
+    .dashboard-heatmap-mobile {
+        display: block;
+        overflow-x: visible;
+        scrollbar-gutter: auto;
+    }
+    .dashboard-heatmap-mobile-label {
+        display: inline;
+    }
+    .dashboard-heatmap-scroll {
+        padding: 8px 2px 4px;
+    }
+    .dashboard-heatmap-grid {
+        --heatmap-cell: 10px;
+        --heatmap-gap: 3px;
+        grid-template-columns: 32px repeat(var(--heatmap-weeks), var(--heatmap-cell));
+        grid-auto-rows: var(--heatmap-cell);
+        width: max-content;
+        min-width: max-content;
+    }
+    .dashboard-heatmap-month,
+    .dashboard-heatmap-weekday {
+        font-size: 11px;
+    }
+    .dashboard-heatmap-weekday,
+    .dashboard-heatmap-corner {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+    }
+    .dashboard-heatmap-weekday {
+        padding-left: 0;
+        padding-right: 6px;
+    }
+    .dashboard-heatmap-cell {
+        border-radius: 4px;
+    }
+    .dashboard-heatmap-grid-mobile {
+        --heatmap-cell: clamp(24px, 7vw, 30px);
+        --heatmap-gap: 5px;
+        grid-template-columns: 32px repeat(var(--heatmap-weeks), var(--heatmap-cell));
+        grid-auto-rows: var(--heatmap-cell);
+        width: max-content;
+        min-width: 0;
+        margin-inline: auto;
+        justify-content: center;
+    }
+    .dashboard-heatmap-grid-mobile .dashboard-heatmap-weekday,
+    .dashboard-heatmap-grid-mobile .dashboard-heatmap-corner {
+        position: static;
+        background: transparent;
+    }
+    .dashboard-heatmap-grid-mobile .dashboard-heatmap-cell {
+        border-radius: 7px;
+    }
+    .dashboard-heatmap-legend {
+        gap: 6px;
+        margin-top: 12px;
+        font-size: 10px;
+    }
+    .dashboard-heatmap-legend i {
+        width: 10px;
+        height: 10px;
+        border-radius: 4px;
+    }
 }
 .dashboard-staff-rank-badge {
     width: 23px;
@@ -1122,6 +1252,16 @@ body.theme-dark label {
 .theme-dark .dashboard-heatmap-legend i {
     background: #243046;
 }
+@media (max-width: 640px) {
+    .theme-dark .dashboard-heatmap-weekday,
+    .theme-dark .dashboard-heatmap-corner {
+        background: var(--dark-panel);
+    }
+    .theme-dark .dashboard-heatmap-grid-mobile .dashboard-heatmap-weekday,
+    .theme-dark .dashboard-heatmap-grid-mobile .dashboard-heatmap-corner {
+        background: transparent;
+    }
+}
 .theme-dark .dashboard-heatmap-cell.level-1,
 .theme-dark .dashboard-heatmap-legend .level-1 {
     background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 24%, #243046);
@@ -1145,6 +1285,9 @@ body.theme-dark label {
 .theme-dark .dashboard-heatmap-cell.level-6,
 .theme-dark .dashboard-heatmap-legend .level-6 {
     background: var(--accent-color, var(--primary-color, #7c3aed));
+}
+.theme-dark .dashboard-heatmap-cell.is-peak {
+    background: color-mix(in srgb, var(--accent-color, var(--primary-color, #7c3aed)) 68%, #020617);
 }
 .theme-dark .dashboard-staff-booking-meter {
     background: #243046;
@@ -1177,10 +1320,12 @@ body.theme-dark label {
     background: rgba(2, 6, 23, 0.72);
 }
 .theme-dark .calendar-scroll::-webkit-scrollbar-thumb,
+.theme-dark .dashboard-hours-chart-scroll::-webkit-scrollbar-thumb,
 .theme-dark .nice-scroll::-webkit-scrollbar-thumb {
     background: #475569;
 }
 .theme-dark .calendar-scroll::-webkit-scrollbar-track,
+.theme-dark .dashboard-hours-chart-scroll::-webkit-scrollbar-track,
 .theme-dark .nice-scroll::-webkit-scrollbar-track {
     background: var(--dark-page);
 }

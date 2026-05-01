@@ -35,43 +35,6 @@ function stat_counts(string $from, string $to, string $scope_where): array {
     ];
 }
 
-function dashboard_working_hour_range(?int $staff_id): array {
-    $where = "st.is_active = 1 AND wh.is_off = 0";
-    $params = [];
-    if ($staff_id !== null) {
-        $where .= " AND wh.staff_id = ?";
-        $params[] = $staff_id;
-    }
-
-    $rows = db_all(
-        "SELECT wh.start_time, wh.end_time
-         FROM working_hours wh
-         JOIN staff st ON st.id = wh.staff_id
-         WHERE {$where}",
-        $params
-    );
-
-    $start_hour = null;
-    $end_hour = null;
-    foreach ($rows as $row) {
-        $start_min = time_to_minutes((string)$row['start_time']);
-        $end_min = time_to_minutes((string)$row['end_time']);
-        if ($start_min === 0 && $end_min === 0) {
-            return [0, 24];
-        }
-        if ($end_min <= $start_min) {
-            continue;
-        }
-        $start_hour = min($start_hour ?? intdiv($start_min, 60), intdiv($start_min, 60));
-        $end_hour = max($end_hour ?? (int)ceil($end_min / 60), (int)ceil($end_min / 60));
-    }
-
-    if ($start_hour === null || $end_hour === null || $end_hour <= $start_hour) {
-        return [0, 24];
-    }
-    return [max(0, $start_hour), min(24, $end_hour)];
-}
-
 $stats = [
     'today' => stat_counts($today, $today, $scope_where),
     'week'  => stat_counts($monday, $sunday, $scope_where),
@@ -89,22 +52,81 @@ $top_services = db_all(
 
 // Busiest hours (this month) — bar chart.
 $busiest = db_all(
-    "SELECT substr(start_time, 1, 2) AS hr, COUNT(*) AS cnt
+    "SELECT start_time
      FROM bookings b
-     WHERE b.booking_date BETWEEN ? AND ? {$scope_where}
-     GROUP BY hr ORDER BY hr",
+     WHERE b.booking_date BETWEEN ? AND ? {$scope_where}",
     [$month_start, $month_end]
 );
-$hour_map = array_fill(0, 24, 0);
-foreach ($busiest as $r) $hour_map[(int)$r['hr']] = (int)$r['cnt'];
-[$chart_hour_start, $chart_hour_end] = dashboard_working_hour_range($scope);
+$slot_interval = max(5, min(240, (int)($GLOBALS['CONFIG']['slot_interval_minutes'] ?? 30)));
+$chart_start_minute = 0;
+$chart_end_minute = 24 * 60;
+$hour_map = [];
+foreach ($busiest as $r) {
+    $start_minute = time_to_minutes((string)$r['start_time']);
+    if ($start_minute < $chart_start_minute || $start_minute >= $chart_end_minute) continue;
+    $bucket = $chart_start_minute + intdiv($start_minute - $chart_start_minute, $slot_interval) * $slot_interval;
+    $hour_map[$bucket] = ($hour_map[$bucket] ?? 0) + 1;
+}
 $hour_labels = [];
 $hour_values = [];
-for ($h = $chart_hour_start; $h < $chart_hour_end; $h++) {
-    $hour_labels[] = format_time_display(sprintf('%02d:00', $h));
-    $hour_values[] = $hour_map[$h] ?? 0;
+for ($minute = $chart_start_minute; $minute < $chart_end_minute; $minute += $slot_interval) {
+    $hour_labels[] = format_time_display(minutes_to_time($minute));
+    $hour_values[] = $hour_map[$minute] ?? 0;
 }
 $has_hour_data = array_sum($hour_values) > 0;
+
+$mobile_chart_start_minute = null;
+$mobile_chart_end_minute = null;
+$mobile_chart_staff_ids = $scope
+    ? [(int)$scope]
+    : array_map(fn($s) => (int)$s['id'], db_all("SELECT id FROM staff WHERE is_active = 1"));
+$month_dows = [];
+for ($dt = $today_dt->modify('first day of this month'); $dt <= $today_dt->modify('last day of this month'); $dt = $dt->modify('+1 day')) {
+    $month_dows[(int)$dt->format('w')] = true;
+}
+if ($mobile_chart_staff_ids && $month_dows) {
+    $staff_placeholders = implode(',', array_fill(0, count($mobile_chart_staff_ids), '?'));
+    $dow_values = array_keys($month_dows);
+    $dow_placeholders = implode(',', array_fill(0, count($dow_values), '?'));
+    $working_hour_rows = db_all(
+        "SELECT start_time, end_time
+         FROM working_hours
+         WHERE staff_id IN ($staff_placeholders)
+           AND day_of_week IN ($dow_placeholders)
+           AND is_off = 0",
+        array_merge($mobile_chart_staff_ids, $dow_values)
+    );
+    foreach ($working_hour_rows as $wh) {
+        $start_minute = time_to_minutes((string)$wh['start_time']);
+        $end_minute = time_to_minutes((string)$wh['end_time']);
+        if ($end_minute === $start_minute && $start_minute === 0) {
+            $end_minute = 24 * 60;
+        } elseif ($end_minute <= $start_minute) {
+            continue;
+        }
+
+        $start_minute = intdiv($start_minute, $slot_interval) * $slot_interval;
+        $end_minute = (int)ceil($end_minute / $slot_interval) * $slot_interval;
+        $start_minute = max(0, min(24 * 60, $start_minute));
+        $end_minute = max(0, min(24 * 60, $end_minute));
+        if ($end_minute <= $start_minute) continue;
+
+        $mobile_chart_start_minute = min($mobile_chart_start_minute ?? $start_minute, $start_minute);
+        $mobile_chart_end_minute = max($mobile_chart_end_minute ?? $end_minute, $end_minute);
+    }
+}
+$mobile_chart_start_minute = $mobile_chart_start_minute ?? 7 * 60;
+$mobile_chart_end_minute = $mobile_chart_end_minute ?? 22 * 60;
+if ($mobile_chart_end_minute <= $mobile_chart_start_minute) {
+    $mobile_chart_start_minute = 0;
+    $mobile_chart_end_minute = 24 * 60;
+}
+$mobile_hour_labels = [];
+$mobile_hour_values = [];
+for ($minute = $mobile_chart_start_minute; $minute < $mobile_chart_end_minute; $minute += $slot_interval) {
+    $mobile_hour_labels[] = format_time_display(minutes_to_time($minute));
+    $mobile_hour_values[] = $hour_map[$minute] ?? 0;
+}
 
 // Busiest days (this year) - contribution-style heatmap.
 $heatmap_year = (int)$today_dt->format('Y');
@@ -134,6 +156,21 @@ for ($m = 1; $m <= 12; $m++) {
         $heatmap_months[$week] = $month_dt->format('M');
     }
 }
+$mobile_heatmap_month_start = $today_dt->modify('first day of this month')->setTime(0, 0);
+$mobile_heatmap_month_end = $today_dt->modify('last day of this month')->setTime(0, 0);
+$mobile_heatmap_start = $mobile_heatmap_month_start->modify('monday this week');
+$mobile_heatmap_end = $mobile_heatmap_month_end->modify('sunday this week');
+$mobile_heatmap_weeks = intdiv((int)$mobile_heatmap_start->diff($mobile_heatmap_end)->days, 7) + 1;
+$mobile_heatmap_months = array_fill(0, $mobile_heatmap_weeks, '');
+$mobile_heatmap_months[0] = $mobile_heatmap_month_start->format('M');
+$mobile_heatmap_label = $mobile_heatmap_month_start->format('M Y');
+$mobile_heatmap_month_max = 0;
+foreach ($heatmap_counts as $date => $count) {
+    if ($date >= $mobile_heatmap_month_start->format('Y-m-d') && $date <= $mobile_heatmap_month_end->format('Y-m-d')) {
+        $mobile_heatmap_month_max = max($mobile_heatmap_month_max, (int)$count);
+    }
+}
+$weekday_labels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
 
 // Upcoming bookings use their own dashboard pagination.
 $upcoming_page = max(1, (int)($_GET['upcoming_page'] ?? 1));
@@ -312,7 +349,11 @@ admin_header();
       <div class="dashboard-diagram-chip">This month</div>
     </div>
     <?php if ($has_hour_data): ?>
-      <div class="dashboard-chart-wrap flex-1 min-h-[190px] md:min-h-[260px]"><canvas id="hoursChart"></canvas></div>
+      <div class="dashboard-hours-chart-scroll flex-1 min-h-[190px] md:min-h-[260px]">
+        <div class="dashboard-chart-wrap dashboard-hours-chart-wrap h-full" style="--hour-slots: <?= count($hour_labels) ?>; --hour-mobile-slots: <?= count($mobile_hour_labels) ?>">
+          <canvas id="hoursChart"></canvas>
+        </div>
+      </div>
     <?php else: ?>
       <div class="dashboard-empty flex-1 min-h-[140px] md:min-h-[260px] flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-xs text-neutral-500">No bookings this month yet.</div>
     <?php endif; ?>
@@ -342,18 +383,18 @@ admin_header();
 <div class="dashboard-diagram-card dashboard-heatmap-card bg-white border border-neutral-200 rounded-xl p-3 min-h-0">
   <div class="dashboard-diagram-header">
     <div class="dashboard-diagram-title">Busiest days</div>
-    <div class="dashboard-diagram-chip"><?= e($heatmap_year_label) ?></div>
+    <div class="dashboard-diagram-chip">
+      <span class="dashboard-heatmap-desktop-label"><?= e($heatmap_year_label) ?></span>
+      <span class="dashboard-heatmap-mobile-label"><?= e($mobile_heatmap_label) ?></span>
+    </div>
   </div>
-  <div class="dashboard-heatmap-scroll">
+  <div class="dashboard-heatmap-scroll dashboard-heatmap-desktop">
     <div class="dashboard-heatmap-grid" style="--heatmap-weeks: <?= (int)$heatmap_weeks ?>">
       <div class="dashboard-heatmap-corner"></div>
       <?php foreach ($heatmap_months as $month): ?>
         <div class="dashboard-heatmap-month"><?= e($month) ?></div>
       <?php endforeach; ?>
-      <?php
-        $weekday_labels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
-        for ($dow = 1; $dow <= 7; $dow++):
-      ?>
+      <?php for ($dow = 1; $dow <= 7; $dow++): ?>
         <div class="dashboard-heatmap-weekday"><?= e($weekday_labels[$dow]) ?></div>
         <?php for ($week = 0; $week < $heatmap_weeks; $week++):
             $cell_dt = $heatmap_start->modify('+' . (($week * 7) + ($dow - 1)) . ' days');
@@ -364,11 +405,49 @@ admin_header();
             if (!$outside && $count > 0 && $heatmap_max > 0) {
                 $level = max(1, min(6, (int)ceil(($count / $heatmap_max) * 6)));
             }
+            $is_peak_day = !$outside && $count > 0 && $count === $heatmap_max;
             $label = $outside
                 ? ''
                 : $cell_dt->format('M j, Y') . ': ' . $count . ' ' . ($count === 1 ? 'booking' : 'bookings');
         ?>
-          <span class="dashboard-heatmap-cell level-<?= (int)$level ?> <?= $outside ? 'is-outside' : '' ?>" title="<?= e($label) ?>" aria-label="<?= e($label) ?>"></span>
+          <span class="dashboard-heatmap-cell level-<?= (int)$level ?> <?= $is_peak_day ? 'is-peak' : '' ?> <?= $outside ? 'is-outside' : '' ?>"
+                data-heatmap-cell
+                data-label="<?= e($label) ?>"
+                data-count="<?= (int)$count ?>"
+                tabindex="<?= (!$outside && $count > 0) ? '0' : '-1' ?>"
+                aria-label="<?= e($label) ?>"></span>
+        <?php endfor; ?>
+      <?php endfor; ?>
+    </div>
+  </div>
+  <div class="dashboard-heatmap-scroll dashboard-heatmap-mobile">
+    <div class="dashboard-heatmap-grid dashboard-heatmap-grid-mobile" style="--heatmap-weeks: <?= (int)$mobile_heatmap_weeks ?>">
+      <div class="dashboard-heatmap-corner"></div>
+      <?php foreach ($mobile_heatmap_months as $month): ?>
+        <div class="dashboard-heatmap-month"><?= e($month) ?></div>
+      <?php endforeach; ?>
+      <?php for ($dow = 1; $dow <= 7; $dow++): ?>
+        <div class="dashboard-heatmap-weekday"><?= e($weekday_labels[$dow]) ?></div>
+        <?php for ($week = 0; $week < $mobile_heatmap_weeks; $week++):
+            $cell_dt = $mobile_heatmap_start->modify('+' . (($week * 7) + ($dow - 1)) . ' days');
+            $date_key = $cell_dt->format('Y-m-d');
+            $count = $heatmap_counts[$date_key] ?? 0;
+            $outside = $cell_dt < $mobile_heatmap_month_start || $cell_dt > $mobile_heatmap_month_end;
+            $level = 0;
+            if (!$outside && $count > 0 && $mobile_heatmap_month_max > 0) {
+                $level = max(1, min(6, (int)ceil(($count / $mobile_heatmap_month_max) * 6)));
+            }
+            $is_peak_day = !$outside && $count > 0 && $count === $mobile_heatmap_month_max;
+            $label = $outside
+                ? ''
+                : $cell_dt->format('M j, Y') . ': ' . $count . ' ' . ($count === 1 ? 'booking' : 'bookings');
+        ?>
+          <span class="dashboard-heatmap-cell level-<?= (int)$level ?> <?= $is_peak_day ? 'is-peak' : '' ?> <?= $outside ? 'is-outside' : '' ?>"
+                data-heatmap-cell
+                data-label="<?= e($label) ?>"
+                data-count="<?= (int)$count ?>"
+                tabindex="<?= (!$outside && $count > 0) ? '0' : '-1' ?>"
+                aria-label="<?= e($label) ?>"></span>
         <?php endfor; ?>
       <?php endfor; ?>
     </div>
@@ -494,10 +573,14 @@ admin_header();
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const hoursLabels = <?= json_encode($hour_labels) ?>;
-const hoursData = <?= json_encode($hour_values) ?>;
+const desktopHoursLabels = <?= json_encode($hour_labels) ?>;
+const desktopHoursData = <?= json_encode($hour_values) ?>;
+const mobileHoursLabels = <?= json_encode($mobile_hour_labels) ?>;
+const mobileHoursData = <?= json_encode($mobile_hour_values) ?>;
 const primary = '<?= e($primary = primary_color()) ?>';
 const dashboardSmall = window.matchMedia('(max-width: 640px)').matches;
+const hoursLabels = dashboardSmall && mobileHoursLabels.length ? mobileHoursLabels : desktopHoursLabels;
+const hoursData = dashboardSmall && mobileHoursData.length ? mobileHoursData : desktopHoursData;
 const dashboardDark = document.body.classList.contains('theme-dark');
 const dashboardMuted = dashboardDark ? '#b6c2d2' : '#9ca3af';
 const dashboardGrid = dashboardDark ? 'rgba(148, 163, 184, 0.14)' : 'rgba(148, 163, 184, 0.18)';
@@ -614,6 +697,46 @@ const dashboardDoughnutGlow = {
   }
 };
 
+const dashboardRoundedBars = {
+  id: 'dashboardRoundedBars',
+  afterDatasetsDraw(chart) {
+    if (chart.config.type !== 'bar') return;
+    const dataset = chart.data.datasets[0];
+    const meta = chart.getDatasetMeta(0);
+    const yScale = chart.scales.y;
+    const base = yScale.getPixelForValue(0);
+    const colors = dataset.customBackgroundColor || dataset.backgroundColor || [];
+    const ctx = chart.ctx;
+
+    meta.data.forEach((bar, index) => {
+      const props = bar.getProps(['x', 'y', 'width'], true);
+      const top = Math.min(props.y, base);
+      const bottom = Math.max(props.y, base);
+      const width = props.width;
+      const height = bottom - top;
+      if (!height || height <= 0 || !width) return;
+
+      const left = props.x - width / 2;
+      const right = props.x + width / 2;
+      const radius = Math.min(width / 2, height);
+      const color = Array.isArray(colors) ? colors[index] : colors;
+
+      ctx.save();
+      ctx.fillStyle = color || primary;
+      ctx.beginPath();
+      ctx.moveTo(left, bottom);
+      ctx.lineTo(left, top + radius);
+      ctx.quadraticCurveTo(left, top, left + radius, top);
+      ctx.lineTo(right - radius, top);
+      ctx.quadraticCurveTo(right, top, right, top + radius);
+      ctx.lineTo(right, bottom);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+};
+
 const hourMax = Math.max(...hoursData, 0);
 const hourBarColors = hoursData.map(value => {
   if (!value || hourMax <= 0) return mixHexColor(primary, 0.68);
@@ -622,6 +745,7 @@ const hourBarColors = hoursData.map(value => {
   if (ratio >= 0.34) return mixHexColor(primary, 0.36);
   return mixHexColor(primary, 0.60);
 });
+const hourTickStep = hoursLabels.length > 56 ? 4 : (hoursLabels.length > 28 ? 2 : 1);
 
 function dashboardExternalTooltip(context) {
   const { chart, tooltip } = context;
@@ -652,9 +776,12 @@ function dashboardExternalTooltip(context) {
     return;
   }
   const color = point.element.options.backgroundColor || point.dataset.backgroundColor || primary;
+  const customColors = point.dataset.customBackgroundColor || [];
+  const customColor = Array.isArray(customColors) ? customColors[point.dataIndex] : customColors;
+  const tooltipColor = customColor || color;
 
   el.querySelector('.dashboard-chart-tooltip-title').textContent = title;
-  el.querySelector('.dashboard-chart-tooltip-row span').style.background = color;
+  el.querySelector('.dashboard-chart-tooltip-row span').style.background = tooltipColor;
   el.querySelector('.dashboard-chart-tooltip-row strong').textContent = value;
   const rawLeft = chart.canvas.offsetLeft + tooltip.caretX;
   const rawTop = chart.canvas.offsetTop + tooltip.caretY;
@@ -668,11 +795,90 @@ function dashboardExternalTooltip(context) {
   el.classList.add('is-visible');
 }
 
+function showDashboardHeatmapTooltip(cell) {
+  const label = cell.dataset.label || '';
+  const count = Number(cell.dataset.count || 0);
+  if (!label || count <= 0) {
+    hideDashboardHeatmapTooltip();
+    return;
+  }
+
+  const parent = cell.closest('.dashboard-heatmap-card');
+  if (!parent) return;
+
+  let el = parent.querySelector('.dashboard-heatmap-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'dashboard-chart-tooltip dashboard-heatmap-tooltip';
+    el.innerHTML = '<div class="dashboard-chart-tooltip-title"></div><div class="dashboard-chart-tooltip-row"><span></span><strong></strong></div>';
+    parent.appendChild(el);
+  }
+
+  const separator = label.lastIndexOf(': ');
+  const title = separator > -1 ? label.slice(0, separator) : label;
+  const value = separator > -1 ? label.slice(separator + 2) : '';
+  const parentRect = parent.getBoundingClientRect();
+  const cellRect = cell.getBoundingClientRect();
+  const cellColor = getComputedStyle(cell).backgroundColor;
+  const minLeft = 74;
+  const maxLeft = Math.max(minLeft, parent.clientWidth - 74);
+  const rawLeft = cellRect.left - parentRect.left + cellRect.width / 2;
+  const showBelow = cellRect.top - parentRect.top < 78;
+
+  el.querySelector('.dashboard-chart-tooltip-title').textContent = title;
+  el.querySelector('.dashboard-chart-tooltip-row span').style.background = cellColor;
+  el.querySelector('.dashboard-chart-tooltip-row strong').textContent = value;
+  el.classList.remove('is-side-left', 'is-side-right');
+  el.classList.toggle('is-below', showBelow);
+  el.style.left = Math.max(minLeft, Math.min(maxLeft, rawLeft)) + 'px';
+  el.style.top = (showBelow ? cellRect.bottom - parentRect.top : cellRect.top - parentRect.top) + 'px';
+  el.classList.add('is-visible');
+}
+
+function hideDashboardHeatmapTooltip() {
+  document.querySelectorAll('.dashboard-heatmap-tooltip.is-visible').forEach(el => {
+    el.classList.remove('is-visible', 'is-below', 'is-side-left', 'is-side-right');
+  });
+}
+
+document.addEventListener('pointerover', function (event) {
+  const cell = event.target.closest('[data-heatmap-cell]');
+  if (cell) showDashboardHeatmapTooltip(cell);
+});
+
+document.addEventListener('pointerout', function (event) {
+  const cell = event.target.closest('[data-heatmap-cell]');
+  if (!cell || cell.contains(event.relatedTarget)) return;
+  hideDashboardHeatmapTooltip();
+});
+
+document.addEventListener('focusin', function (event) {
+  const cell = event.target.closest('[data-heatmap-cell]');
+  if (cell) showDashboardHeatmapTooltip(cell);
+});
+
+document.addEventListener('focusout', function (event) {
+  if (event.target.closest('[data-heatmap-cell]')) hideDashboardHeatmapTooltip();
+});
+
+document.addEventListener('click', function (event) {
+  const cell = event.target.closest('[data-heatmap-cell]');
+  if (cell) {
+    showDashboardHeatmapTooltip(cell);
+    return;
+  }
+  if (!event.target.closest('.dashboard-heatmap-tooltip')) hideDashboardHeatmapTooltip();
+});
+
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') hideDashboardHeatmapTooltip();
+});
+
 const hoursCanvas = document.getElementById('hoursChart');
 if (hoursCanvas) {
   new Chart(hoursCanvas, {
     type: 'bar',
-    data: { labels: hoursLabels, datasets: [{ data: hoursData, backgroundColor: hourBarColors, borderRadius: { topLeft: 999, topRight: 999, bottomLeft: 0, bottomRight: 0 }, borderSkipped: false, barPercentage: 0.58, categoryPercentage: 0.72 }] },
+    data: { labels: hoursLabels, datasets: [{ data: hoursData, customBackgroundColor: hourBarColors, backgroundColor: 'rgba(0,0,0,0)', hoverBackgroundColor: 'rgba(0,0,0,0)', borderWidth: 0, borderRadius: 0, borderSkipped: false, barPercentage: 0.78, categoryPercentage: 0.82 }] },
     options: {
       interaction: { intersect: false, mode: 'index' },
       responsive: true, maintainAspectRatio: false,
@@ -691,7 +897,8 @@ if (hoursCanvas) {
             maxRotation: 0,
             font: { size: dashboardSmall ? 9 : 10, weight: '500' },
             callback: function(value, index) {
-              return dashboardSmall && index % 4 !== 0 ? '' : this.getLabelForValue(value);
+              const step = dashboardSmall ? Math.max(hourTickStep, 4) : hourTickStep;
+              return index % step !== 0 ? '' : this.getLabelForValue(value);
             }
           }
         },
@@ -702,7 +909,8 @@ if (hoursCanvas) {
           ticks: { color: dashboardMuted, padding: 10, precision: 0, maxTicksLimit: dashboardSmall ? 3 : 5, font: { size: dashboardSmall ? 9 : 10, weight: '500' } }
         }
       }
-    }
+    },
+    plugins: [dashboardRoundedBars]
   });
 }
 
